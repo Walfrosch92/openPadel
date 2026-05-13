@@ -1099,10 +1099,23 @@ if ! grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf; then
 fi
 
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-sh -c "iptables-save > /etc/iptables.ipv4.nat"
 
-if ! grep -q "iptables-restore" /etc/rc.local; then
-    sed -i '/^exit 0/i iptables-restore < /etc/iptables.ipv4.nat' /etc/rc.local
+# Persist iptables rules across reboots
+# Pi OS Bookworm: use iptables-persistent if present, else write rc.local
+if dpkg -l iptables-persistent &>/dev/null; then
+    mkdir -p /etc/iptables
+    sh -c "iptables-save > /etc/iptables/rules.v4"
+else
+    sh -c "iptables-save > /etc/iptables.ipv4.nat"
+    # Create /etc/rc.local if missing (Bookworm drops it by default)
+    if [ ! -f /etc/rc.local ]; then
+        printf '#!/bin/sh -e\nexit 0\n' > /etc/rc.local
+        chmod +x /etc/rc.local
+        systemctl enable rc-local 2>/dev/null || true
+    fi
+    if ! grep -q "iptables-restore" /etc/rc.local; then
+        sed -i '/^exit 0/i iptables-restore < /etc/iptables.ipv4.nat' /etc/rc.local
+    fi
 fi
 
 systemctl unmask hostapd
