@@ -1585,15 +1585,18 @@ def get_state_dict(state: MatchState) -> Dict:
 @app.get("/", response_class=HTMLResponse)
 async def scoreboard(request: Request):
     """Haupt-Scoreboard-Ansicht"""
-    state = get_state_dict(current_match)
-    
-    return templates.TemplateResponse("index.html", get_template_context(
-        request,
-        title="Tennis Scoreboard",
-        state=state,
-        team_a_display=current_match.player1_name,
-        team_b_display=current_match.player2_name
-    ))
+    try:
+        state = get_state_dict(current_match)
+        return templates.TemplateResponse("index.html", get_template_context(
+            request,
+            title="Tennis Scoreboard",
+            state=state,
+            team_a_display=current_match.player1_name,
+            team_b_display=current_match.player2_name
+        ))
+    except Exception as e:
+        logger.exception("Fehler in / Route")
+        return HTMLResponse(f"<pre>Fehler: {e}\n\nDetails im Log: journalctl -u padel-server -n 50</pre>", status_code=500)
 
 @app.get("/api/match-status")
 async def get_match_status():
