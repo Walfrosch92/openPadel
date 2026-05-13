@@ -506,42 +506,27 @@ cat > "$LIB_DIR/epd2in9_V2.py" << 'EOFEPD'
 import logging
 from . import epdconfig
 
-EPD_WIDTH = 128
+EPD_WIDTH  = 128
 EPD_HEIGHT = 296
-
-FULL_UPDATE = 0
-PART_UPDATE = 1
 
 logger = logging.getLogger(__name__)
 
 class EPD:
     def __init__(self):
         self.reset_pin = epdconfig.RST_PIN
-        self.dc_pin = epdconfig.DC_PIN
-        self.busy_pin = epdconfig.BUSY_PIN
-        self.cs_pin = epdconfig.CS_PIN
-        self.width = EPD_WIDTH
-        self.height = EPD_HEIGHT
-
-    lut_full_update = [
-        0x50, 0xAA, 0x55, 0xAA, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0xFF, 0xFF, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    ]
-
-    lut_partial_update = [
-        0x10, 0x18, 0x18, 0x08, 0x18, 0x18, 0x08, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x13, 0x14, 0x44, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    ]
+        self.dc_pin    = epdconfig.DC_PIN
+        self.busy_pin  = epdconfig.BUSY_PIN
+        self.cs_pin    = epdconfig.CS_PIN
+        self.width     = EPD_WIDTH
+        self.height    = EPD_HEIGHT
 
     def reset(self):
         epdconfig.digital_write(self.reset_pin, 1)
-        epdconfig.delay_ms(50)
+        epdconfig.delay_ms(100)
         epdconfig.digital_write(self.reset_pin, 0)
         epdconfig.delay_ms(2)
         epdconfig.digital_write(self.reset_pin, 1)
-        epdconfig.delay_ms(50)
+        epdconfig.delay_ms(100)
 
     def send_command(self, command):
         epdconfig.digital_write(self.dc_pin, 0)
@@ -562,62 +547,87 @@ class EPD:
             epdconfig.delay_ms(10)
             elapsed += 10
             if elapsed >= timeout_ms:
-                logger.warning("e-Paper ReadBusy timeout after %dms", elapsed)
+                logger.warning("ReadBusy timeout after %dms", elapsed)
                 break
         logger.debug("e-Paper busy release")
 
     def TurnOnDisplay(self):
         self.send_command(0x22)
-        self.send_data(0xC7)
+        self.send_data(0xF7)
         self.send_command(0x20)
         self.ReadBusy()
 
     def init(self):
-        if (epdconfig.module_init() != 0):
+        if epdconfig.module_init() != 0:
             return -1
         self.reset()
-        self.send_command(0x04)
         self.ReadBusy()
-        self.send_command(0x00)
-        self.send_data(0x1f)
-        self.send_command(0x61)
-        self.send_data(0x80)
+
+        self.send_command(0x12)  # Software reset (SSD1680)
+        self.ReadBusy()
+
+        self.send_command(0x01)  # Driver output control: 296 lines
+        self.send_data(0x27)     # (296-1) = 0x127 → low byte
+        self.send_data(0x01)     # high byte
+        self.send_data(0x00)
+
+        self.send_command(0x11)  # Data entry mode: X+, Y+
+        self.send_data(0x03)
+
+        self.send_command(0x44)  # RAM X start/end: bytes 0–15 → 128 pixels
+        self.send_data(0x00)
+        self.send_data(0x0F)
+
+        self.send_command(0x45)  # RAM Y start/end: 0x127 → 0x000
+        self.send_data(0x27)
         self.send_data(0x01)
-        self.send_data(0x28)
-        self.send_command(0X50)
-        self.send_data(0x97)
+        self.send_data(0x00)
+        self.send_data(0x00)
+
+        self.send_command(0x3C)  # Border waveform
+        self.send_data(0x05)
+
+        self.send_command(0x18)  # Use built-in temperature sensor
+        self.send_data(0x80)
+
+        self.send_command(0x4E)  # RAM X address counter = 0
+        self.send_data(0x00)
+
+        self.send_command(0x4F)  # RAM Y address counter = 0x127
+        self.send_data(0x27)
+        self.send_data(0x01)
+
+        self.ReadBusy()
         return 0
 
     def getbuffer(self, image):
-        buf = [0xFF] * (int(self.width/8) * self.height)
-        image_monocolor = image.convert('1')
-        imwidth, imheight = image_monocolor.size
-        pixels = image_monocolor.load()
-        if(imwidth == self.width and imheight == self.height):
-            logger.debug("Vertical")
+        buf = [0xFF] * (int(self.width / 8) * self.height)
+        image_mono = image.convert('1')
+        imwidth, imheight = image_mono.size
+        pixels = image_mono.load()
+        if imwidth == self.width and imheight == self.height:
             for y in range(imheight):
                 for x in range(imwidth):
                     if pixels[x, y] == 0:
                         buf[int((x + y * self.width) / 8)] &= ~(0x80 >> (x % 8))
-        elif(imwidth == self.height and imheight == self.width):
-            logger.debug("Horizontal")
+        elif imwidth == self.height and imheight == self.width:
             for y in range(imheight):
                 for x in range(imwidth):
                     newx = y
                     newy = self.height - x - 1
                     if pixels[x, y] == 0:
-                        buf[int((newx + newy*self.width) / 8)] &= ~(0x80 >> (y % 8))
+                        buf[int((newx + newy * self.width) / 8)] &= ~(0x80 >> (y % 8))
         return buf
 
     def display(self, image):
         self.send_command(0x24)
-        for i in range(0, int(self.width * self.height / 8)):
-            self.send_data(image[i])
+        for b in image:
+            self.send_data(b)
         self.TurnOnDisplay()
 
-    def Clear(self, color):
+    def Clear(self, color=0xFF):
         self.send_command(0x24)
-        for i in range(0, int(self.width * self.height / 8)):
+        for _ in range(int(self.width * self.height / 8)):
             self.send_data(color)
         self.TurnOnDisplay()
 
