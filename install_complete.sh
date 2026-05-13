@@ -421,7 +421,7 @@ usermod -a -G spi,gpio $ACTUAL_USER 2>/dev/null || true
 echo -e "${YELLOW}[4/6]${NC} ${MSG_PACKAGES}"
 apt-get update -qq
 apt-get install -y \
-    python3-pip python3-venv python3-spidev python3-rpi.gpio python3-pil git \
+    python3-pip python3-venv python3-spidev python3-lgpio python3-pil git \
     rpicam-apps \
     qrencode \
     iw \
@@ -440,22 +440,26 @@ import logging
 
 try:
     import spidev
-    import RPi.GPIO as GPIO
+    import lgpio
 except ImportError:
-    sys.exit("This library requires the spidev & RPi.GPIO libraries\nInstall with: sudo apt install python3-spidev python3-rpi.gpio")
+    sys.exit("This library requires spidev and lgpio\nInstall with: sudo apt install python3-spidev python3-lgpio")
 
-RST_PIN = 17
-DC_PIN = 25
-CS_PIN = 8
+RST_PIN  = 17
+DC_PIN   = 25
+CS_PIN   = 8
 BUSY_PIN = 24
 
+# Pi 5 uses gpiochip4 (RP1), older Pi use gpiochip0
+GPIO_CHIP = 4 if os.path.exists('/dev/gpiochip4') else 0
+
 SPI = spidev.SpiDev(0, 0)
+_h  = None  # lgpio chip handle
 
 def digital_write(pin, value):
-    GPIO.output(pin, value)
+    lgpio.gpio_write(_h, pin, value)
 
 def digital_read(pin):
-    return GPIO.input(pin)
+    return lgpio.gpio_read(_h, pin)
 
 def delay_ms(delaytime):
     time.sleep(delaytime / 1000.0)
@@ -464,23 +468,22 @@ def spi_writebyte(data):
     SPI.writebytes(data)
 
 def module_init():
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-    GPIO.setup(RST_PIN, GPIO.OUT)
-    GPIO.setup(DC_PIN, GPIO.OUT)
-    GPIO.setup(CS_PIN, GPIO.OUT)
-    GPIO.setup(BUSY_PIN, GPIO.IN)
+    global _h
+    _h = lgpio.gpiochip_open(GPIO_CHIP)
+    lgpio.gpio_claim_output(_h, RST_PIN)
+    lgpio.gpio_claim_output(_h, DC_PIN)
+    lgpio.gpio_claim_output(_h, CS_PIN)
+    lgpio.gpio_claim_input(_h, BUSY_PIN)
+    SPI.open(0, 0)
     SPI.max_speed_hz = 4000000
     SPI.mode = 0b00
     return 0
 
 def module_exit():
-    logging.debug("spi end")
     SPI.close()
-    logging.debug("close 5V, Module enters 0 power consumption ...")
-    GPIO.output(RST_PIN, 0)
-    GPIO.output(DC_PIN, 0)
-    GPIO.cleanup()
+    lgpio.gpio_write(_h, RST_PIN, 0)
+    lgpio.gpio_write(_h, DC_PIN, 0)
+    lgpio.gpiochip_close(_h)
 EOFCONFIG
 
 cat > "$LIB_DIR/epd2in9_V2.py" << 'EOFEPD'
