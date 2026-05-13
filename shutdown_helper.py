@@ -7,6 +7,7 @@ Shutdown Helper - Wird beim Herunterfahren ausgeführt
 4. Fährt System herunter
 """
 import os, sys, time, pathlib, subprocess, signal
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / 'lib'))
 from PIL import Image
 
 LOG = pathlib.Path('/tmp/poweroff-helper.log')
