@@ -661,14 +661,28 @@ epd = epd2in9_V2.EPD()
 epd.init()
 print("Display ready!")
 
-img = Image.open('$SCRIPT_DIR/poweroff.jpg').convert('RGB')
-# E-paper is landscape 296x128 – rotate and fit
-img = img.rotate(90, expand=True)
-img = img.resize((epd.height, epd.width), Image.LANCZOS)
-img = img.convert('1')
+image = Image.open('$SCRIPT_DIR/poweroff.jpg')
+display_width = epd.height   # 296
+display_height = epd.width   # 128
+
+img_ratio = image.width / image.height
+display_ratio = display_width / display_height
+if img_ratio > display_ratio:
+    new_width = display_width
+    new_height = int(display_width / img_ratio)
+else:
+    new_height = display_height
+    new_width = int(display_height * img_ratio)
+
+image = image.resize((new_width, new_height), Image.LANCZOS)
+final_image = Image.new('RGB', (display_width, display_height), 'white')
+offset_x = (display_width - new_width) // 2
+offset_y = (display_height - new_height) // 2
+final_image.paste(image, (offset_x, offset_y))
+final_image = final_image.convert('1', dither=Image.FLOYDSTEINBERG)
 
 print("Sending image to display...")
-epd.display(epd.getbuffer(img))
+epd.display(epd.getbuffer(final_image))
 print("Done!")
 epd.sleep()
 EOFTEST
