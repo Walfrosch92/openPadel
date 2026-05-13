@@ -360,23 +360,29 @@ echo "  RST  -> GPIO 17"
 echo "  BUSY -> GPIO 24"
 echo ""
 
-# Display-Test
-echo -e "${YELLOW}Starte Display-Test...${NC}"
-if python3 "$SCRIPT_DIR/test_display.py" 2>&1; then
-    echo ""
-    echo -e "${GREEN}Display-Test erfolgreich durchgeführt!${NC}"
-    echo ""
-    if ask_yes_no "Zeigt das Display 'openPadel' an?"; then
-        echo -e "${GREEN}Perfekt! Display funktioniert.${NC}"
-        DISPLAY_OK=1
+# Display-Test – nur wenn SPI bereits im Kernel aktiv ist
+if [ -e /dev/spidev0.0 ]; then
+    echo -e "${YELLOW}Starte Display-Test...${NC}"
+    if python3 "$SCRIPT_DIR/test_display.py" 2>&1; then
+        echo ""
+        echo -e "${GREEN}Display-Test erfolgreich durchgeführt!${NC}"
+        echo ""
+        if ask_yes_no "Zeigt das Display 'openPadel' an?"; then
+            echo -e "${GREEN}Perfekt! Display funktioniert.${NC}"
+            DISPLAY_OK=1
+        else
+            echo -e "${YELLOW}Display-Test fehlgeschlagen. Bitte Verkabelung prüfen.${NC}"
+            echo -e "${YELLOW}Installation wird trotzdem fortgesetzt...${NC}"
+            DISPLAY_OK=0
+        fi
     else
-        echo -e "${YELLOW}Display-Test fehlgeschlagen. Bitte Verkabelung prüfen.${NC}"
-        echo -e "${YELLOW}Installation wird trotzdem fortgesetzt...${NC}"
+        echo -e "${RED}Display-Test konnte nicht ausgeführt werden.${NC}"
         DISPLAY_OK=0
     fi
 else
-    echo -e "${RED}Display-Test konnte nicht ausgeführt werden.${NC}"
-    echo -e "${YELLOW}Möglicherweise ist ein Neustart erforderlich.${NC}"
+    echo -e "${YELLOW}SPI noch nicht aktiv (/dev/spidev0.0 fehlt).${NC}"
+    echo -e "${YELLOW}Display-Test wird nach dem Neustart am Ende automatisch übersprungen –${NC}"
+    echo -e "${YELLOW}der Display Worker übernimmt dann die Kontrolle.${NC}"
     DISPLAY_OK=0
 fi
 
