@@ -446,7 +446,7 @@ except ImportError:
 
 RST_PIN  = 17
 DC_PIN   = 25
-CS_PIN   = 8
+CS_PIN   = 8   # controlled by spidev – do NOT claim via lgpio
 BUSY_PIN = 24
 
 # Pi 5 uses gpiochip4 (RP1), older Pi use gpiochip0
@@ -455,7 +455,23 @@ GPIO_CHIP = 4 if os.path.exists('/dev/gpiochip4') else 0
 SPI = spidev.SpiDev(0, 0)
 _h  = None  # lgpio chip handle
 
+def _claim_out(h, pin):
+    try:
+        lgpio.gpio_claim_output(h, pin)
+    except lgpio.error:
+        lgpio.gpio_free(h, pin)
+        lgpio.gpio_claim_output(h, pin)
+
+def _claim_in(h, pin):
+    try:
+        lgpio.gpio_claim_input(h, pin)
+    except lgpio.error:
+        lgpio.gpio_free(h, pin)
+        lgpio.gpio_claim_input(h, pin)
+
 def digital_write(pin, value):
+    if pin == CS_PIN:
+        return  # spidev handles CS automatically
     lgpio.gpio_write(_h, pin, value)
 
 def digital_read(pin):
@@ -470,10 +486,10 @@ def spi_writebyte(data):
 def module_init():
     global _h
     _h = lgpio.gpiochip_open(GPIO_CHIP)
-    lgpio.gpio_claim_output(_h, RST_PIN)
-    lgpio.gpio_claim_output(_h, DC_PIN)
-    lgpio.gpio_claim_output(_h, CS_PIN)
-    lgpio.gpio_claim_input(_h, BUSY_PIN)
+    _claim_out(_h, RST_PIN)
+    _claim_out(_h, DC_PIN)
+    # CS_PIN is owned by the SPI kernel driver – skip
+    _claim_in(_h, BUSY_PIN)
     SPI.open(0, 0)
     SPI.max_speed_hz = 4000000
     SPI.mode = 0b00
