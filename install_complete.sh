@@ -555,10 +555,15 @@ class EPD:
         epdconfig.spi_writebyte([data])
         epdconfig.digital_write(self.cs_pin, 1)
 
-    def ReadBusy(self):
+    def ReadBusy(self, timeout_ms=30000):
         logger.debug("e-Paper busy")
-        while(epdconfig.digital_read(self.busy_pin) == 1):
+        elapsed = 0
+        while epdconfig.digital_read(self.busy_pin) == 1:
             epdconfig.delay_ms(10)
+            elapsed += 10
+            if elapsed >= timeout_ms:
+                logger.warning("e-Paper ReadBusy timeout after %dms", elapsed)
+                break
         logger.debug("e-Paper busy release")
 
     def TurnOnDisplay(self):
@@ -639,28 +644,21 @@ import sys
 sys.path.insert(0, '$SCRIPT_DIR/lib')
 
 from waveshare_epd import epd2in9_V2
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 print("Initializing display...")
 epd = epd2in9_V2.EPD()
 epd.init()
 print("Display ready!")
 
-image = Image.new('1', (epd.height, epd.width), 255)
-draw = ImageDraw.Draw(image)
+img = Image.open('$SCRIPT_DIR/poweroff.jpg').convert('RGB')
+# E-paper is landscape 296x128 – rotate and fit
+img = img.rotate(90, expand=True)
+img = img.resize((epd.height, epd.width), Image.LANCZOS)
+img = img.convert('1')
 
-try:
-    font_large = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 40)
-    font_small = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 20)
-except:
-    font_large = ImageFont.load_default()
-    font_small = ImageFont.load_default()
-
-draw.text((50, 50), "openPadel", font=font_large, fill=0)
-draw.text((70, 110), "Display Test", font=font_small, fill=0)
-draw.text((90, 140), "OK!", font=font_small, fill=0)
-
-epd.display(epd.getbuffer(image))
+print("Sending image to display...")
+epd.display(epd.getbuffer(img))
 print("Done!")
 epd.sleep()
 EOFTEST
