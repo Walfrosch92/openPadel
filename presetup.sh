@@ -18,6 +18,9 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ACTUAL_USER="${SUDO_USER:-$USER}"
+
 # Korrekten Config-Pfad ermitteln (Pi 5 vs. ältere Modelle)
 if [ -f /boot/firmware/config.txt ]; then
     BOOT_CONFIG="/boot/firmware/config.txt"
@@ -26,6 +29,28 @@ else
 fi
 
 echo -e "${BLUE}Boot-Config:${NC} $BOOT_CONFIG"
+echo ""
+
+# ==============================================================================
+# SPRACHE WÄHLEN
+# ==============================================================================
+echo -e "${YELLOW}Sprache / Language / Idioma:${NC}"
+echo "  1) Deutsch"
+echo "  2) English"
+echo "  3) Español"
+echo ""
+read -p "Auswahl / Choice / Selección (1-3, Standard/Default: 1): " LANG_CHOICE
+
+case "$LANG_CHOICE" in
+    2) LANGUAGE="en" ;;
+    3) LANGUAGE="es" ;;
+    *) LANGUAGE="de" ;;
+esac
+
+mkdir -p "$SCRIPT_DIR/data"
+echo "{\"language\": \"$LANGUAGE\"}" > "$SCRIPT_DIR/data/language_settings.json"
+chown "$ACTUAL_USER:$ACTUAL_USER" "$SCRIPT_DIR/data/language_settings.json"
+echo -e "${GREEN}✓ Sprache gespeichert: $LANGUAGE${NC}"
 echo ""
 
 CHANGED=0
