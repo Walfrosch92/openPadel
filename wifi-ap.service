@@ -1,0 +1,14 @@
+[Unit]
+Description=WiFi Access Point für Padel Controller
+After=network-online.target dhcpcd.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/pi/openPadel/openPadel/wifi_access_point.py --start
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

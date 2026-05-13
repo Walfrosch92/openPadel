@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Einstellungen</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .nav {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            text-align: center;
+        }
+        .nav a {
+            color: #fff;
+            text-decoration: none;
+            margin: 0 10px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            font-size: 14px;
+        }
+        .nav a:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .settings-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        .settings-section {
+            margin-bottom: 35px;
+            padding-bottom: 25px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .settings-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .settings-section h2 {
+            color: #333;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        .settings-section h2::before {
+            content: '';
+            display: inline-block;
+            width: 5px;
+            height: 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin-right: 15px;
+            border-radius: 3px;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            display: block;
+            color: #555;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        .form-group input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-control {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+            background: white;
+            color: #333;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+        .radio-option {
+            flex: 1;
+        }
+        .radio-option input[type="radio"] {
+            display: none;
+        }
+        .radio-option label {
+            display: block;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            color: #555;
+        }
+        .radio-option input[type="radio"]:checked + label {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            transform: scale(1.05);
+        }
+        .radio-option label:hover {
+            border-color: #667eea;
+        }
+        .serve-control {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .serve-display {
+            flex: 1;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        .status-message {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .info-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            color: #856404;
+        }
+        @media (max-width: 768px) {
+            .radio-group {
+                flex-direction: column;
+            }
+            .serve-control {
+                flex-direction: column;
+            }
+            .serve-control .btn {
+                width: 100%;
+            }
+        }
+    </style>
+    <script src="/static/js/i18n.js"></script>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" data-i18n="nav.scoreboard">Scoreboard</a>
+        <a href="/webcam" data-i18n="nav.camera">Kamera</a>
+        <a href="/stats" data-i18n="nav.stats">Statistik</a>
+        <a href="/settings" data-i18n="nav.settings">Einstellungen</a>
+        <a href="/admin" data-i18n="nav.admin">Admin</a>
+    </nav>
+
+    <div class="container">
+        <h1 data-i18n="settings.title">Einstellungen</h1>
+
+        <div class="settings-container">
+            <div class="settings-section">
+                <h2 data-i18n="settings.match_format">Match-Format</h2>
+                <div class="form-group">
+                    <label data-i18n="settings.best_of">Best of</label>
+                    <div class="radio-group">
+                        <div class="radio-option">
+                            <input type="radio" id="bestof1" name="bestof" value="1">
+                            <label for="bestof1" data-i18n="settings.best_of_1">Best of 1</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="bestof3" name="bestof" value="3" checked>
+                            <label for="bestof3" data-i18n="settings.best_of_3">Best of 3</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="bestof5" name="bestof" value="5">
+                            <label for="bestof5" data-i18n="settings.best_of_5">Best of 5</label>
+                        </div>
+                    </div>
+                    <div class="info-box" data-i18n="settings.note_format">
+                        Hinweis: Diese Einstellung legt fest, wie viele Sätze gewonnen werden müssen.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h2 data-i18n="settings.game_mode">Spielmodus</h2>
+                <div class="form-group">
+                    <label for="game-mode" data-i18n="settings.rules">Regelwerk</label>
+                    <select id="game-mode" class="form-control" onchange="saveGameMode()">
+                        <option value="mit_vorteil_tiebreak">Mit Vorteil & Tiebreak</option>
+                    </select>
+                    <div class="info-box" style="margin-top: 15px;" data-i18n="settings.note_mode">
+                        Hinweis: Wählen Sie das Regelwerk für Ihr Spiel. Eigene Regelwerke können als JSON in /game_modes/ hinzugefügt werden.
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 data-i18n="settings.team_names">Team-Namen</h2>
+                <div class="form-group">
+                    <label for="team-a-name" data-i18n="settings.team_a_name">Team A Name</label>
+                    <input type="text" id="team-a-name" placeholder="Team A" value="Team A">
+                </div>
+                <div class="form-group">
+                    <label for="team-b-name" data-i18n="settings.team_b_name">Team B Name</label>
+                    <input type="text" id="team-b-name" placeholder="Team B" value="Team B">
+                </div>
+                <button class="btn btn-primary" onclick="saveTeamNames()" data-i18n="settings.save_team_names">Team-Namen speichern</button>
+            </div>
+
+            <div class="settings-section">
+                <h2 data-i18n="settings.serve">Aufschlag</h2>
+                <div class="form-group">
+                    <label data-i18n="settings.current_serve">Aktueller Aufschlag</label>
+                    <div class="serve-control">
+                        <div class="serve-display" id="serve-display">Team A</div>
+                        <button class="btn btn-secondary" onclick="toggleServe()" data-i18n="settings.toggle_serve">Aufschlag wechseln</button>
+                    </div>
+                    <div class="info-box" style="margin-top: 15px;" data-i18n="settings.note_serve">
+                        Hinweis: Wechseln Sie manuell den Aufschlag, falls nötig.
+                    </div>
+                </div>
+            </div>
+
+            <div id="status-message" class="status-message"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentState = null;
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/state');
+                const data = await response.json();
+                currentState = data.state;
+
+                // Best of aus State laden (wird bereits vom Backend berechnet)
+                const bestOf = currentState.best_of || 3;
+                const radioButton = document.getElementById(`bestof${bestOf}`);
+                if (radioButton) {
+                    radioButton.checked = true;
+                }
+
+                document.getElementById('team-a-name').value = currentState.team_a_name || 'Team A';
+                document.getElementById('team-b-name').value = currentState.team_b_name || 'Team B';
+
+                updateServeDisplay();
+                
+                // Load game modes
+                await loadGameModes();
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                showStatus('Fehler beim Laden der Einstellungen', 'error');
+            }
+        }
+        
+        async function loadGameModes() {
+            try {
+                const response = await fetch('/api/game-modes');
+                const modes = await response.json();
+                const select = document.getElementById('game-mode');
+                select.innerHTML = '';
+                
+                const currentGameMode = currentState?.game_mode || 'mit_vorteil_tiebreak';
+                
+                modes.forEach(mode => {
+                    const option = document.createElement('option');
+                    option.value = mode.id;
+                    option.textContent = mode.name;
+                    option.title = mode.description;
+                    if (currentGameMode === mode.id) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading game modes:', error);
+            }
+        }
+        
+        async function saveGameMode() {
+            const gameModeId = document.getElementById('game-mode').value;
+            
+            try {
+                const response = await fetch('/api/settings/game-mode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({game_mode: gameModeId})
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showStatus('Spielmodus gespeichert', 'success');
+                    currentState = data.state;
+                } else {
+                    showStatus('Fehler beim Speichern', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving game mode:', error);
+                showStatus('Fehler beim Speichern des Spielmodus', 'error');
+            }
+        }
+
+        function updateServeDisplay() {
+            const serveName = currentState.serve === 'a' ?
+                (currentState.team_a_name || 'Team A') :
+                (currentState.team_b_name || 'Team B');
+            document.getElementById('serve-display').textContent = serveName;
+        }
+
+        async function saveTeamNames() {
+            const teamAName = document.getElementById('team-a-name').value.trim();
+            const teamBName = document.getElementById('team-b-name').value.trim();
+
+            if (!teamAName || !teamBName) {
+                showStatus('Bitte beide Team-Namen eingeben', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/settings/teams', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        team_a_name: teamAName,
+                        team_b_name: teamBName
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showStatus('Team-Namen gespeichert', 'success');
+                    currentState = data.state;
+                    updateServeDisplay();
+                } else {
+                    showStatus('Fehler beim Speichern', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving team names:', error);
+                showStatus('Fehler beim Speichern der Team-Namen', 'error');
+            }
+        }
+
+        async function toggleServe() {
+            try {
+                const response = await fetch('/api/settings/serve', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showStatus('Aufschlag gewechselt', 'success');
+                    currentState = data.state;
+                    updateServeDisplay();
+                } else {
+                    showStatus('Fehler beim Wechseln', 'error');
+                }
+            } catch (error) {
+                console.error('Error toggling serve:', error);
+                showStatus('Fehler beim Wechseln des Aufschlags', 'error');
+            }
+        }
+
+        document.querySelectorAll('input[name="bestof"]').forEach(radio => {
+            radio.addEventListener('change', async function() {
+                try {
+                    const response = await fetch('/api/settings/best-of', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({best_of: parseInt(this.value)})
+                    });
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        showStatus(`Best of ${this.value} aktiviert`, 'success');
+                        currentState = data.state;
+                    } else {
+                        showStatus('Fehler beim Speichern', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error saving best-of:', error);
+                    showStatus('Fehler beim Speichern der Einstellung', 'error');
+                }
+            });
+        });
+
+        function showStatus(message, type) {
+            const statusMsg = document.getElementById('status-message');
+            statusMsg.textContent = message;
+            statusMsg.className = 'status-message status-' + type;
+            statusMsg.style.display = 'block';
+            setTimeout(() => {
+                statusMsg.style.display = 'none';
+            }, 3000);
+        }
+
+        loadSettings();
+
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/state');
+                const data = await response.json();
+                currentState = data.state;
+                updateServeDisplay();
+            } catch (error) {
+                console.error('Error refreshing state:', error);
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

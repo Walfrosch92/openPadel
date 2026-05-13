@@ -1,0 +1,13 @@
+{
+  "team_a": "Team A",
+  "team_b": "Team B",
+  "serve": "A",
+  "sets": [],
+  "current_game": {
+    "score_a": 0,
+    "score_b": 0
+  },
+  "settings": {
+    "best_of": 3
+  }
+}

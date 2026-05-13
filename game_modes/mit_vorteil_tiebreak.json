@@ -1,0 +1,14 @@
+{
+  "name": "Mit Vorteil & Tiebreak",
+  "description": "Standard Tennis-Regeln mit Advantage und Tiebreak bei 6:6",
+  "rules": {
+    "advantage": true,
+    "tiebreak": true,
+    "tiebreak_at_games": [6, 6],
+    "tiebreak_points": 7,
+    "tiebreak_minimum_difference": 2,
+    "games_to_win_set": 6,
+    "games_minimum_difference": 2,
+    "final_set_tiebreak": true
+  }
+}

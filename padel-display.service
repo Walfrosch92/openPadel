@@ -1,0 +1,17 @@
+[Unit]
+Description=Padel Display Worker
+After=padel-server.service
+Requires=padel-server.service
+
+[Service]
+Type=simple
+User=padel
+WorkingDirectory=/home/padel/padel
+ExecStart=/home/padel/padel/start_display_worker.sh
+Restart=always
+RestartSec=10
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/padel/.Xauthority"
+
+[Install]
+WantedBy=multi-user.target

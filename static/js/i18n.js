@@ -1,0 +1,72 @@
+// i18n.js - Internationalisierung
+let translations = {};
+let currentLang = 'en';
+
+// Lade Übersetzungen
+async function loadTranslations() {
+    try {
+        const langResponse = await fetch('/api/language');
+        const langData = await langResponse.json();
+        currentLang = langData.current;
+        
+        const transResponse = await fetch('/api/translations');
+        translations = await transResponse.json();
+        
+        applyTranslations();
+    } catch (error) {
+        console.error('Error loading translations:', error);
+    }
+}
+
+// Wende Übersetzungen auf Seite an
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        const translation = getTranslation(key);
+        if (translation) {
+            element.textContent = translation;
+        }
+    });
+    
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+        const key = element.getAttribute('data-i18n-placeholder');
+        const translation = getTranslation(key);
+        if (translation) {
+            element.placeholder = translation;
+        }
+    });
+    
+    document.querySelectorAll('[data-i18n-title]').forEach(element => {
+        const key = element.getAttribute('data-i18n-title');
+        const translation = getTranslation(key);
+        if (translation) {
+            element.title = translation;
+        }
+    });
+    
+    // HTML lang attribute
+    document.documentElement.lang = currentLang;
+}
+
+// Holt Übersetzung mit verschachtelten Schlüsseln (z.B. "nav.scoreboard")
+function getTranslation(key) {
+    const keys = key.split('.');
+    let value = translations;
+    
+    for (let k of keys) {
+        if (value && typeof value === 'object' && k in value) {
+            value = value[k];
+        } else {
+            return null;
+        }
+    }
+    
+    return typeof value === 'string' ? value : null;
+}
+
+// Initialisiere beim Laden
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadTranslations);
+} else {
+    loadTranslations();
+}

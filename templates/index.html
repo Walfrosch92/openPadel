@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="app_title">{{ t.app_title }}</title>
+    <script src="/static/js/i18n.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+        }
+        .nav {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            text-align: center;
+        }
+        .nav a {
+            color: #fff;
+            text-decoration: none;
+            margin: 0 10px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            font-size: 14px;
+        }
+        .nav a:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .game-info {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+        .game-info-text {
+            color: #333;
+            font-size: 1em;
+            font-weight: 500;
+        }
+        .game-info-text span {
+            font-weight: bold;
+            color: #667eea;
+            margin: 0 5px;
+        }
+        .scoreboard {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+        .team-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 8px solid #667eea;
+        }
+        .team-row.team-b {
+            border-left-color: #764ba2;
+        }
+        .team-row.serving {
+            background: #e8f4f8;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
+        }
+        .team-name {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #333;
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+        .serve-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #ffd700;
+            margin-right: 15px;
+            visibility: hidden;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+        }
+        .team-row.serving .serve-indicator {
+            visibility: visible;
+        }
+        .scores {
+            display: flex;
+            gap: 25px;
+            align-items: center;
+        }
+        .score-item {
+            text-align: center;
+        }
+        .score-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .score-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #333;
+            min-width: 50px;
+        }
+        .sets-history {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .sets-history h2 {
+            color: #333;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+        }
+        .set-display {
+            display: flex;
+            gap: 15px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            flex-direction: row-reverse;
+            padding: 5px;
+        }
+        .set-box {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 10px;
+            min-width: 100px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .set-box.new-set {
+            animation: slideInFromLeft 0.5s ease-out;
+        }
+        .set-box.current {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+        @keyframes slideInFromLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+        }
+        .set-box .set-title {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .set-box .set-score {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 20px 40px;
+            font-size: 1.3em;
+            font-weight: bold;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            touch-action: manipulation;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        .btn-team-a {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+        .btn-team-b {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+        .btn-undo {
+            background: #6c757d;
+            color: white;
+            min-width: 150px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
+        }
+        .status-message {
+            text-align: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            font-size: 1.2em;
+            color: #333;
+            font-weight: bold;
+        }
+        @media (max-width: 768px) {
+            .team-name {
+                font-size: 1.3em;
+            }
+            .score-value {
+                font-size: 2em;
+            }
+            .scores {
+                gap: 15px;
+            }
+            .btn {
+                padding: 15px 25px;
+                font-size: 1.1em;
+            }
+        }
+        
+        /* Konfetti Animation */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background: #f0f;
+            position: absolute;
+            animation: confetti-fall 3s linear forwards;
+        }
+        @keyframes confetti-fall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        /* Match Ende Modal */
+        .match-end-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .match-end-modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+        }
+        .modal-content h2 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        .modal-content p {
+            color: #666;
+            font-size: 1.3em;
+            margin-bottom: 30px;
+        }
+        .modal-content .btn {
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" data-i18n="nav.scoreboard">{{ t.nav.scoreboard }}</a>
+        <a href="/webcam" data-i18n="nav.camera">{{ t.nav.camera }}</a>
+        <a href="/stats" data-i18n="nav.stats">{{ t.nav.stats }}</a>
+        <a href="/settings" data-i18n="nav.settings">Settings</a>
+        <a href="/admin" data-i18n="nav.admin">{{ t.nav.admin }}</a>
+    </nav>
+
+    <div class="container">
+        <h1 data-i18n="scoreboard.title">Padel Scoreboard</h1>
+
+        <div class="game-info">
+            <div class="game-info-text">
+                <span id="game-mode-display">Mit Vorteil & Tiebreak</span> • Best of <span id="best-of-display">3</span>
+            </div>
+        </div>
+
+        <div class="scoreboard">
+            <div class="team-row team-a" id="team-a-row">
+                <div class="team-name">
+                    <span class="serve-indicator"></span>
+                    <span id="team-a-name">{{ team_a_display }}</span>
+                </div>
+                <div class="scores">
+                    <div class="score-item">
+                        <div class="score-label" data-i18n="scoreboard.sets">{{ t.scoreboard.sets }}</div>
+                        <div class="score-value" id="team-a-sets">0</div>
+                    </div>
+                    <div class="score-item">
+                        <div class="score-label" data-i18n="scoreboard.games">{{ t.scoreboard.games }}</div>
+                        <div class="score-value" id="team-a-games">0</div>
+                    </div>
+                    <div class="score-item">
+                        <div class="score-label" data-i18n="scoreboard.points">{{ t.scoreboard.points }}</div>
+                        <div class="score-value" id="team-a-points">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="team-row team-b" id="team-b-row">
+                <div class="team-name">
+                    <span class="serve-indicator"></span>
+                    <span id="team-b-name">{{ team_b_display }}</span>
+                </div>
+                <div class="scores">
+                    <div class="score-item">
+                        <div class="score-label" data-i18n="scoreboard.sets">{{ t.scoreboard.sets }}</div>
+                        <div class="score-value" id="team-b-sets">0</div>
+                    </div>
+                    <div class="score-item">
+                        <div class="score-label" data-i18n="scoreboard.games">{{ t.scoreboard.games }}</div>
+                        <div class="score-value" id="team-b-games">0</div>
+                    </div>
+                    <div class="score-item">
+                        <div class="score-label" data-i18n="scoreboard.points">{{ t.scoreboard.points }}</div>
+                        <div class="score-value" id="team-b-points">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sets-history">
+            <h2 data-i18n="scoreboard.played_sets">Gespielte Sätze (Session)</h2>
+            <div class="set-display" id="sets-display">
+                <div class="set-box current">
+                    <div class="set-title" data-i18n="scoreboard.current_set">Aktueller Satz</div>
+                    <div class="set-score">0 - 0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-team-a" onclick="addPoint('a')" id="btn-team-a">{{ team_a_display }} <span data-i18n="scoreboard.point">+Point</span></button>
+            <button class="btn btn-undo" onclick="undoPoint()" data-i18n="scoreboard.undo" id="btn-undo">{{ t.scoreboard.undo }}</button>
+            <button class="btn btn-team-b" onclick="addPoint('b')" id="btn-team-b">{{ team_b_display }} <span data-i18n="scoreboard.point">+Point</span></button>
+        </div>
+        
+        <div class="controls" id="new-match-controls" style="display: none;">
+            <button class="btn btn-primary" onclick="startNewMatch()" style="width: 100%; padding: 15px; font-size: 1.2em;" data-i18n="scoreboard.new_match">Neues Match starten</button>
+        </div>
+
+        <div class="status-message" id="status-message" style="display: none;"></div>
+    </div>
+
+    <div class="match-end-modal" id="match-end-modal">
+        <div class="modal-content">
+            <h2 data-i18n="scoreboard.match_ended">🏆 Match beendet! 🏆</h2>
+            <p id="winner-text" data-i18n="scoreboard.winner">Gewinner: Team A</p>
+            <button class="btn btn-primary" onclick="startNewMatch()" data-i18n="scoreboard.new_match">Neues Spiel starten</button>
+            <button class="btn btn-secondary" onclick="closeModal()" data-i18n="scoreboard.close">Schließen</button>
+        </div>
+    </div>
+
+    <script>
+        let currentState = {{ state | tojson }};
+        let lastMatchOver = currentState.match_over || false;
+        let lastSetCount = currentState.set_history ? currentState.set_history.length : 0;
+        let gameModes = {};
+
+        // Lade Spielmodi beim Start
+        async function loadGameModes() {
+            try {
+                const response = await fetch('/api/game-modes');
+                const modes = await response.json();
+                modes.forEach(mode => {
+                    gameModes[mode.id] = mode.name;
+                });
+                updateGameInfo(currentState);
+            } catch (error) {
+                console.error('Error loading game modes:', error);
+            }
+        }
+
+        function updateGameInfo(state) {
+            const gameModeName = gameModes[state.game_mode] || state.game_mode || 'Mit Vorteil & Tiebreak';
+            const bestOf = state.best_of || 3;
+            
+            document.getElementById('game-mode-display').textContent = gameModeName;
+            document.getElementById('best-of-display').textContent = bestOf;
+        }
+
+        function updateScoreboard(state) {
+            currentState = state;
+
+            document.getElementById('team-a-name').textContent = state.team_a_name || 'Team A';
+            document.getElementById('team-b-name').textContent = state.team_b_name || 'Team B';
+
+            document.getElementById('team-a-sets').textContent = state.sets_a;
+            document.getElementById('team-a-games').textContent = state.games_a;
+            // Punkte sind bereits formatiert vom Backend (0, 15, 30, 40, AD)
+            document.getElementById('team-a-points').textContent = state.points_a_display;
+
+            document.getElementById('team-b-sets').textContent = state.sets_b;
+            document.getElementById('team-b-games').textContent = state.games_b;
+            // Punkte sind bereits formatiert vom Backend (0, 15, 30, 40, AD)
+            document.getElementById('team-b-points').textContent = state.points_b_display;
+
+            const teamARow = document.getElementById('team-a-row');
+            const teamBRow = document.getElementById('team-b-row');
+            teamARow.classList.toggle('serving', state.serve === 'a');
+            teamBRow.classList.toggle('serving', state.serve === 'b');
+
+            // Prüfe ob neuer Satz begonnen wurde
+            const currentSetCount = state.set_history ? state.set_history.length : 0;
+            const isNewSet = currentSetCount > lastSetCount;
+            
+            updateSetsHistory(state, isNewSet);
+            
+            if (isNewSet) {
+                lastSetCount = currentSetCount;
+            }
+
+            // Aktualisiere Game-Info
+            updateGameInfo(state);
+
+            // Status-Message wird nicht mehr angezeigt - nur Modal
+            const statusMsg = document.getElementById('status-message');
+            statusMsg.style.display = 'none';
+            
+            // Zeige/verstecke Buttons basierend auf Match-Status
+            const btnA = document.getElementById('btn-team-a');
+            const btnB = document.getElementById('btn-team-b');
+            const btnUndo = document.getElementById('btn-undo');
+            const newMatchControls = document.getElementById('new-match-controls');
+            
+            if (state.match_over) {
+                // Match ist vorbei - zeige nur "Neues Match" Button
+                btnA.style.display = 'none';
+                btnB.style.display = 'none';
+                btnUndo.style.display = 'none';
+                newMatchControls.style.display = 'block';
+            } else {
+                // Match läuft - zeige normale Buttons
+                btnA.style.display = '';
+                btnB.style.display = '';
+                btnUndo.style.display = '';
+                newMatchControls.style.display = 'none';
+            }
+            
+            // Modal nur anzeigen wenn Match GERADE beendet wurde (Übergang von false -> true)
+            if (!lastMatchOver && state.match_over) {
+                showMatchEndModal(state.winner === 'a' ? state.team_a_name : state.team_b_name);
+            }
+            lastMatchOver = state.match_over;
+
+            btnA.innerHTML = `${state.team_a_name || 'Team A'} <span data-i18n="scoreboard.point">+Punkt</span>`;
+            btnB.innerHTML = `${state.team_b_name || 'Team B'} <span data-i18n="scoreboard.point">+Punkt</span>`;
+        }
+
+        function formatPoints(points) {
+            // Funktion wird nicht mehr benötigt, da Punkte vom Backend bereits formatiert kommen
+            // Behalte sie aber für Rückwärtskompatibilität
+            if (typeof points === 'string') {
+                return points; // Bereits formatiert (AD, 40, etc.)
+            }
+            const pointsMap = {0: '0', 1: '15', 2: '30', 3: '40'};
+            return pointsMap[points] || points;
+        }
+
+        function updateSetsHistory(state, isNewSet = false) {
+            const setsDisplay = document.getElementById('sets-display');
+            
+            // Leere Container
+            setsDisplay.innerHTML = '';
+
+            // AKTUELLER SATZ IMMER GANZ LINKS
+            const currentSetBox = document.createElement('div');
+            currentSetBox.className = 'set-box current';
+            // Animation nur wenn tatsächlich ein neuer Satz begonnen wurde (nicht beim ersten Satz)
+            if (isNewSet && state.set_history && state.set_history.length > 0) {
+                currentSetBox.classList.add('new-set');
+                // Animation-Klasse nach Animation entfernen
+                setTimeout(() => {
+                    currentSetBox.classList.remove('new-set');
+                }, 500);
+            }
+            currentSetBox.innerHTML = `
+                <div class="set-title" data-i18n="scoreboard.current_set">Aktueller Satz</div>
+                <div class="set-score">${state.games_a} - ${state.games_b}</div>
+            `;
+            setsDisplay.appendChild(currentSetBox);
+
+            // ABGESCHLOSSENE SÄTZE (neueste zuerst, dann ältere nach rechts)
+            if (state.set_history && state.set_history.length > 0) {
+                // Sätze in umgekehrter Reihenfolge durchgehen (neueste zuerst)
+                for (let i = state.set_history.length - 1; i >= 0; i--) {
+                    const set = state.set_history[i];
+                    const setBox = document.createElement('div');
+                    setBox.className = 'set-box';
+                    setBox.innerHTML = `
+                        <div class="set-title" data-i18n="scoreboard.set">Satz ${i + 1}</div>
+                        <div class="set-score">${set[0]} - ${set[1]}</div>
+                    `;
+                    setsDisplay.appendChild(setBox);
+                }
+            }
+        }
+
+        async function addPoint(team) {
+            try {
+                const response = await fetch('/api/point', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({team: team})
+                });
+                const data = await response.json();
+                if (data.state) {
+                    updateScoreboard(data.state);
+                }
+            } catch (error) {
+                console.error('Error adding point:', error);
+            }
+        }
+
+        async function undoPoint() {
+            try {
+                const response = await fetch('/api/undo', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await response.json();
+                if (data.state) {
+                    updateScoreboard(data.state);
+                }
+            } catch (error) {
+                console.error('Error undoing point:', error);
+            }
+        }
+
+        async function fetchState() {
+            try {
+                const response = await fetch('/api/state');
+                const data = await response.json();
+                if (data.state) {
+                    updateScoreboard(data.state);
+                }
+            } catch (error) {
+                console.error('Error fetching state:', error);
+            }
+        }
+
+        updateScoreboard(currentState);
+        loadGameModes();
+        setInterval(fetchState, 1000);
+        
+        function showMatchEndModal(winnerName) {
+            const modal = document.getElementById('match-end-modal');
+            const winnerText = document.getElementById('winner-text');
+            winnerText.setAttribute('data-i18n', 'scoreboard.winner');
+            winnerText.textContent = `Gewinner: ${winnerName}`;
+            modal.classList.add('show');
+            
+            // Konfetti starten
+            launchConfetti();
+        }
+        
+        function closeModal() {
+            const modal = document.getElementById('match-end-modal');
+            modal.classList.remove('show');
+            
+            // Zeige "Neues Match"-Button und verstecke normale Buttons
+            document.getElementById('new-match-controls').style.display = 'block';
+            document.getElementById('btn-team-a').style.display = 'none';
+            document.getElementById('btn-undo').style.display = 'none';
+            document.getElementById('btn-team-b').style.display = 'none';
+        }
+        
+        async function startNewMatch() {
+            try {
+                const response = await fetch('/api/new-match', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await response.json();
+                if (data.state) {
+                    // Seite neu laden für sauberen Neustart
+                    window.location.reload();
+                }
+            } catch (error) {
+                console.error('Error starting new match:', error);
+            }
+        }
+        
+        function launchConfetti() {
+            const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+            const confettiCount = 150;
+            
+            for (let i = 0; i < confettiCount; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + '%';
+                    confetti.style.top = '-10px';
+                    confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                    confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                    document.body.appendChild(confetti);
+                    
+                    setTimeout(() => confetti.remove(), 3500);
+                }, i * 30);
+            }
+        }
+    </script>
+</body>
+</html>

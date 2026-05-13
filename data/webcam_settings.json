@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "camera_index": 0,
+  "detection_sensitivity": 0.7,
+  "cooldown_seconds": 10.0,
+  "width": 640,
+  "height": 480,
+  "fps": 10,
+  "gesture_recognition_enabled": false
+}

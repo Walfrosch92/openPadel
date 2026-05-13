@@ -1,0 +1,907 @@
+/* ====================================================================
+   OpenPadel - Modern Touch-Optimized Scoreboard Styling
+   ==================================================================== */
+
+/* ====================================================================
+   CSS Variables & Reset
+   ==================================================================== */
+:root {
+  /* Team Colors */
+  --team-a-primary: #10b981;
+  --team-a-secondary: #059669;
+  --team-b-primary: #ef4444;
+  --team-b-secondary: #3b82f6;
+  
+  /* Neutral Colors */
+  --neutral-gray: #6b7280;
+  --neutral-light: #9ca3af;
+  --neutral-dark: #374151;
+  
+  /* Special Colors */
+  --roi-color: #00ffff;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  
+  /* Background Gradient */
+  --bg-gradient-start: #667eea;
+  --bg-gradient-end: #764ba2;
+  
+  /* UI Colors */
+  --card-bg: rgba(255, 255, 255, 0.95);
+  --card-shadow: rgba(0, 0, 0, 0.1);
+  --button-shadow: rgba(0, 0, 0, 0.2);
+  
+  /* Typography */
+  --font-primary: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  
+  /* Touch Target */
+  --touch-min: 44px;
+  
+  /* Transitions */
+  --transition-speed: 0.3s;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-primary);
+  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+  background-attachment: fixed;
+  color: #1f2937;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ====================================================================
+   Typography
+   ==================================================================== */
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  color: var(--neutral-dark);
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+}
+
+/* ====================================================================
+   Layout Container
+   ==================================================================== */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--spacing-md);
+}
+
+/* ====================================================================
+   Scoreboard - Main Score Display
+   ==================================================================== */
+.scoreboard {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ====================================================================
+   Team Card
+   ==================================================================== */
+.team-card {
+  background: var(--card-bg);
+  border-radius: 1rem;
+  padding: var(--spacing-lg);
+  box-shadow: 0 10px 30px var(--card-shadow);
+  min-width: 280px;
+  flex: 1;
+  position: relative;
+  transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+}
+
+.team-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 40px var(--card-shadow);
+}
+
+.team-card.team-a {
+  border-top: 4px solid var(--team-a-primary);
+}
+
+.team-card.team-b {
+  border-top: 4px solid var(--team-b-primary);
+}
+
+.team-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.team-a .team-name {
+  color: var(--team-a-secondary);
+}
+
+.team-b .team-name {
+  color: var(--team-b-secondary);
+}
+
+.score-display {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.score-item {
+  text-align: center;
+}
+
+.score-label {
+  font-size: 0.875rem;
+  color: var(--neutral-gray);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--spacing-xs);
+}
+
+.score-value {
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.team-a .score-value {
+  color: var(--team-a-primary);
+}
+
+.team-b .score-value {
+  color: var(--team-b-primary);
+}
+
+/* Pulse animation for score updates */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.score-value.pulse {
+  animation: pulse 0.5s ease;
+}
+
+/* ====================================================================
+   Serve Indicator
+   ==================================================================== */
+.serve-indicator {
+  position: absolute;
+  top: var(--spacing-lg);
+  right: var(--spacing-lg);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--warning-color);
+  box-shadow: 0 0 10px var(--warning-color);
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+/* ====================================================================
+   Buttons - Touch Optimized
+   ==================================================================== */
+.button {
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all var(--transition-speed) ease;
+  box-shadow: 0 4px 6px var(--button-shadow);
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px var(--button-shadow);
+}
+
+.button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px var(--button-shadow);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Button Variants */
+.button-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.button-team-a {
+  background: var(--team-a-primary);
+  color: white;
+}
+
+.button-team-a:hover {
+  background: var(--team-a-secondary);
+}
+
+.button-team-b {
+  background: var(--team-b-primary);
+  color: white;
+}
+
+.button-team-b:hover {
+  background: var(--team-b-secondary);
+}
+
+.button-success {
+  background: var(--success-color);
+  color: white;
+}
+
+.button-warning {
+  background: var(--warning-color);
+  color: white;
+}
+
+.button-error {
+  background: var(--error-color);
+  color: white;
+}
+
+.button-neutral {
+  background: var(--neutral-gray);
+  color: white;
+}
+
+.button-secondary {
+  background: white;
+  color: var(--neutral-dark);
+  border: 2px solid var(--neutral-light);
+}
+
+/* Button Group */
+.button-group {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: var(--spacing-md) 0;
+}
+
+/* ====================================================================
+   Slider - Range Input
+   ==================================================================== */
+.slider-container {
+  margin: var(--spacing-md) 0;
+}
+
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-sm);
+  font-weight: 600;
+  color: var(--neutral-dark);
+}
+
+.slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, var(--neutral-light) 0%, var(--team-a-primary) 100%);
+  outline: none;
+  transition: opacity var(--transition-speed);
+}
+
+.slider:hover {
+  opacity: 0.9;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform var(--transition-speed);
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  border: none;
+  transition: transform var(--transition-speed);
+}
+
+.slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* ====================================================================
+   Table - Stats Display
+   ==================================================================== */
+.table-container {
+  background: var(--card-bg);
+  border-radius: 1rem;
+  padding: var(--spacing-lg);
+  box-shadow: 0 4px 12px var(--card-shadow);
+  margin: var(--spacing-lg) 0;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.table th {
+  padding: var(--spacing-md);
+  text-align: left;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.875rem;
+}
+
+.table td {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table tbody tr {
+  transition: background var(--transition-speed);
+}
+
+.table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ====================================================================
+   Modal Dialog
+   ==================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn var(--transition-speed);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  background: white;
+  border-radius: 1rem;
+  padding: var(--spacing-xl);
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp var(--transition-speed);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--neutral-dark);
+}
+
+.modal-close {
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  border: none;
+  background: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--neutral-gray);
+  transition: color var(--transition-speed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: var(--error-color);
+}
+
+.modal-body {
+  margin-bottom: var(--spacing-lg);
+}
+
+.modal-footer {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ====================================================================
+   Canvas - ROI Editor
+   ==================================================================== */
+.canvas-container {
+  position: relative;
+  display: inline-block;
+  margin: var(--spacing-md) 0;
+  background: #000;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  cursor: crosshair;
+}
+
+.roi-overlay {
+  position: absolute;
+  border: 2px solid var(--roi-color);
+  background: rgba(0, 255, 255, 0.1);
+  pointer-events: none;
+  box-shadow: 0 0 10px var(--roi-color);
+}
+
+.roi-label {
+  position: absolute;
+  background: var(--roi-color);
+  color: #000;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 2px;
+  top: -20px;
+  left: 0;
+}
+
+.canvas-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+/* ====================================================================
+   Form Elements
+   ==================================================================== */
+.form-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: var(--neutral-dark);
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 1rem;
+  font-family: inherit;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+  transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+  min-height: var(--touch-min);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--bg-gradient-start);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+/* ====================================================================
+   Loading Spinner
+   ==================================================================== */
+.spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--spacing-xl);
+}
+
+/* ====================================================================
+   Alerts & Notifications
+   ==================================================================== */
+.alert {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: 0.5rem;
+  margin: var(--spacing-md) 0;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success-color);
+  border-left: 4px solid var(--success-color);
+}
+
+.alert-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning-color);
+  border-left: 4px solid var(--warning-color);
+}
+
+.alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error-color);
+  border-left: 4px solid var(--error-color);
+}
+
+.alert-info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--team-b-secondary);
+  border-left: 4px solid var(--team-b-secondary);
+}
+
+/* ====================================================================
+   Card Component
+   ==================================================================== */
+.card {
+  background: var(--card-bg);
+  border-radius: 1rem;
+  padding: var(--spacing-lg);
+  box-shadow: 0 4px 12px var(--card-shadow);
+  margin: var(--spacing-md) 0;
+}
+
+.card-header {
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--neutral-dark);
+}
+
+.card-body {
+  color: var(--neutral-gray);
+}
+
+/* ====================================================================
+   Grid Layouts
+   ==================================================================== */
+.grid {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+/* ====================================================================
+   Responsive Design
+   ==================================================================== */
+
+/* Small screens (480px and below) */
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  .scoreboard {
+    flex-direction: column;
+  }
+  
+  .team-card {
+    min-width: 100%;
+  }
+  
+  .score-value {
+    font-size: 2.5rem;
+  }
+  
+  .button {
+    font-size: 0.875rem;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .modal {
+    max-width: 95%;
+    padding: var(--spacing-lg);
+  }
+}
+
+/* 7" Display - 800x480 */
+@media (min-width: 800px) and (max-width: 800px) and (min-height: 480px) and (max-height: 480px) {
+  body {
+    font-size: 14px;
+  }
+  
+  .scoreboard {
+    gap: var(--spacing-md);
+  }
+  
+  .score-value {
+    font-size: 2.5rem;
+  }
+}
+
+/* 7" Display - 1024x600 */
+@media (min-width: 1024px) and (max-width: 1024px) and (min-height: 600px) and (max-height: 600px) {
+  .score-value {
+    font-size: 3.5rem;
+  }
+  
+  .team-card {
+    padding: var(--spacing-xl);
+  }
+}
+
+/* Tablet and up */
+@media (min-width: 768px) {
+  .container {
+    padding: var(--spacing-xl);
+  }
+  
+  h1 {
+    font-size: 2.5rem;
+  }
+  
+  .modal {
+    max-width: 600px;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ====================================================================
+   Utility Classes
+   ==================================================================== */
+.text-center {
+  text-align: center;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.mt-sm { margin-top: var(--spacing-sm); }
+.mt-md { margin-top: var(--spacing-md); }
+.mt-lg { margin-top: var(--spacing-lg); }
+.mt-xl { margin-top: var(--spacing-xl); }
+
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+.mb-xl { margin-bottom: var(--spacing-xl); }
+
+.hidden {
+  display: none !important;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gap-sm { gap: var(--spacing-sm); }
+.gap-md { gap: var(--spacing-md); }
+.gap-lg { gap: var(--spacing-lg); }
+
+/* ====================================================================
+   Accessibility
+   ==================================================================== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--bg-gradient-start);
+  outline-offset: 2px;
+}
+
+/* ====================================================================
+   Print Styles
+   ==================================================================== */
+@media print {
+  body {
+    background: white;
+  }
+  
+  .button,
+  .modal-overlay,
+  .canvas-controls {
+    display: none;
+  }
+  
+  .card,
+  .team-card {
+    box-shadow: none;
+    border: 1px solid #e5e7eb;
+  }
+}

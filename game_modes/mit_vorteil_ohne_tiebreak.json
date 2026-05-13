@@ -1,0 +1,14 @@
+{
+  "name": "Mit Vorteil ohne Tiebreak",
+  "description": "Klassisches Tennis mit Advantage, ohne Tiebreak",
+  "rules": {
+    "advantage": true,
+    "tiebreak": false,
+    "tiebreak_at_games": null,
+    "tiebreak_points": null,
+    "tiebreak_minimum_difference": null,
+    "games_to_win_set": 6,
+    "games_minimum_difference": 2,
+    "final_set_tiebreak": false
+  }
+}

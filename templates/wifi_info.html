@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WLAN Information - Padel Scoreboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+    <style>
+        /* Gradient-Hintergrund */
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .app-container {
+            min-height: 100vh;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Navigation Anpassung */
+        .app-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .nav-link {
+            color: white !important;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .wifi-status {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn-icon {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Container */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        .header h1 {
+            color: white;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+        }
+        
+        /* WIFI Card */
+        .wifi-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+            flex: 1;
+        }
+        
+        .wifi-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        /* WIFI Details */
+        .wifi-details {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .wifi-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            flex-wrap: wrap;
+        }
+        
+        .wifi-item:last-child {
+            border-bottom: none;
+        }
+        
+        .wifi-label {
+            font-weight: 600;
+            min-width: 150px;
+            text-align: left;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .wifi-value {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border-radius: 8px;
+            flex-grow: 1;
+            margin-right: 10px;
+            word-break: break-word;
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .wifi-value-full {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-top: 5px;
+            width: 100%;
+            word-break: break-word;
+            text-align: left;
+            font-size: 0.9em;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        /* Copy Button */
+        .copy-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        
+        .copy-btn:hover {
+            background: #f0f0f0;
+            transform: translateY(-2px);
+        }
+        
+        /* Status Indicator */
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .status-active {
+            background-color: #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+            animation: pulse 2s infinite;
+        }
+        
+        .status-inactive {
+            background-color: #f44336;
+        }
+        
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1rem;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 1) 0%, rgba(118, 75, 162, 1) 100%);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, rgba(244, 67, 54, 0.9) 0%, rgba(183, 28, 28, 0.9) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: linear-gradient(135deg, rgba(244, 67, 54, 1) 0%, rgba(183, 28, 28, 1) 100%);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: auto;
+            padding-top: 20px;
+            text-align: center;
+            width: 100%;
+        }
+        
+        /* Back Button */
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: bold;
+            text-align: center;
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            transition: all 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        
+        /* Info Message */
+        .info-message {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+            font-size: 0.9em;
+            line-height: 1.5;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .info-message p {
+            margin: 5px 0;
+        }
+        
+        .info-message strong {
+            color: white;
+        }
+        
+        /* Modal Styling */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-content {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .modal-content h3 {
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        /* Form Styling */
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
+            backdrop-filter: blur(5px);
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* Close Buttons */
+        .close-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .close-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .close-btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            margin-right: 10px;
+        }
+        
+        /* Password Strength */
+        .password-strength {
+            margin-top: 5px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+        
+        .strength-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s, background-color 0.3s;
+        }
+        
+        .strength-weak { background-color: #ff4757; }
+        .strength-medium { background-color: #ffa502; }
+        .strength-strong { background-color: #2ed573; }
+        
+        /* Messages */
+        .error-message {
+            color: #ff4757;
+            font-size: 0.9em;
+            margin-top: 5px;
+            display: none;
+        }
+        
+        .success-message {
+            color: #2ed573;
+            font-size: 0.9em;
+            margin-top: 5px;
+            display: none;
+        }
+        
+        /* QR Code Container */
+        .qr-code-container {
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        /* Animations */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        /* Toast Styles */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1001;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            animation: fadeInOut 3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toast.success {
+            background: rgba(46, 213, 115, 0.9);
+        }
+        
+        .toast.error {
+            background: rgba(255, 71, 87, 0.9);
+        }
+        
+        .toast.info {
+            background: rgba(33, 150, 243, 0.9);
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .wifi-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .wifi-label {
+                margin-bottom: 5px;
+                width: 100%;
+            }
+            
+            .wifi-value {
+                width: 100%;
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
+            
+            .copy-btn {
+                width: 100%;
+                margin-left: 0;
+                margin-top: 5px;
+            }
+            
+            .modal-content {
+                padding: 20px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .action-buttons .btn {
+                width: 100%;
+            }
+            
+            .header {
+                padding: 15px;
+            }
+            
+            .logo {
+                font-size: 2.5rem;
+            }
+        }
+        
+        /* Main Content */
+        .main-content {
+            padding-top: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Code Styling */
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #FFD700;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+    <script src="/static/js/i18n.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header mit Navigation -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-table-tennis-paddle-ball"></i>
+                    <h1 data-i18n="app_title">openPadel</h1>
+                </div>
+                <nav class="main-nav">
+                    <a href="/" class="nav-link">
+                        <i class="fas fa-home"></i> <span data-i18n="nav.scoreboard">Scoreboard</span>
+                    </a>
+                    <a href="/stats" class="nav-link">
+                        <i class="fas fa-chart-bar"></i> <span data-i18n="nav.statistics">Statistik</span>
+                    </a>
+                    <a href="/settings" class="nav-link">
+                        <i class="fas fa-video"></i> <span data-i18n="nav.gestures">Gesten</span>
+                    </a>
+                    <a href="/admin" class="nav-link">
+                        <i class="fas fa-user-cog"></i> <span data-i18n="nav.admin">Admin</span>
+                    </a>
+                </nav>
+                <div class="header-actions">
+                    <div class="wifi-status" id="wifiStatusBadge">
+                        <i class="fas fa-wifi"></i>
+                        <span data-i18n="common.loading">Lade...</span>
+                    </div>
+                    <button class="btn btn-icon" id="themeToggle" onclick="toggleTheme()">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="container">
+                <div class="header">
+                    <div class="logo"><i class="fas fa-wifi"></i></div>
+                    <h1 data-i18n="wifi.title">WLAN Verbindung</h1>
+                    <p data-i18n="wifi.subtitle">Verbindungsinformationen für Ihren Padel Scoreboard</p>
+                </div>
+                
+                <div class="wifi-card">
+                    <div class="wifi-icon"><i class="fas fa-satellite-dish"></i></div>
+                    <h2 data-i18n="wifi.connection_details">Verbindungsdetails</h2>
+                    
+                    <div class="info-message">
+                        <p><strong><i class="fas fa-info-circle"></i> Hinweis:</strong> Der WLAN-Name bleibt nach jedem Neustart gleich!</p>
+                        <p><span data-i18n="wifi.note_default">Das Standard-Passwort lautet</span> <code>openPadel</code>. <span data-i18n="wifi.note_default_change">Sie können es unten ändern.</span></p>
+                    </div>
+                    
+                    <div class="wifi-details">
+                        <div class="wifi-item">
+                            <div>
+                                <span id="status-indicator" class="status-indicator"></span>
+                                <span id="status-text" class="wifi-label"><span data-i18n="wifi.status">Status</span>: <span data-i18n="wifi.checking">Prüfe...</span></span>
+                            </div>
+                        </div>
+                        
+                        <div class="wifi-item">
+                            <span class="wifi-label" data-i18n="wifi.ssid">WLAN-Name (SSID):</span>
+                            <div style="display: flex; align-items: center; width: 100%;">
+                                <span id="ssid" class="wifi-value">openpadel_XXXXXX</span>
+                                <button class="copy-btn" onclick="copyToClipboard('ssid')">
+                                    <i class="fas fa-copy"></i> <span data-i18n="wifi.copy">Kopieren</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="wifi-item">
+                            <span class="wifi-label" data-i18n="wifi.password">Passwort:</span>
+                            <div style="display: flex; align-items: center; width: 100%;">
+                                <span id="password" class="wifi-value">openPadel</span>
+                                <button class="copy-btn" onclick="copyToClipboard('password')">
+                                    <i class="fas fa-copy"></i> <span data-i18n="wifi.copy">Kopieren</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="wifi-item">
+                            <span class="wifi-label" data-i18n="wifi.ip">IP-Adresse:</span>
+                            <div style="display: flex; align-items: center; width: 100%;">
+                                <span id="ip" class="wifi-value">10.20.1.1</span>
+                                <button class="copy-btn" onclick="copyToClipboard('ip')">
+                                    <i class="fas fa-copy"></i> <span data-i18n="wifi.copy">Kopieren</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="wifi-item">
+                            <span class="wifi-label" data-i18n="wifi.url">Web-Interface:</span>
+                            <div style="display: flex; align-items: center; width: 100%;">
+                                <span id="url" class="wifi-value">http://10.20.1.1:8000</span>
+                                <button class="copy-btn" onclick="copyToClipboard('url')">
+                                    <i class="fas fa-copy"></i> <span data-i18n="wifi.copy">Kopieren</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="restart-btn" class="btn btn-primary" onclick="restartWifi()">
+                            <i class="fas fa-redo"></i> <span data-i18n="wifi.restart_hotspot">Hotspot neustarten</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="showQRCode()">
+                            <i class="fas fa-qrcode"></i> <span data-i18n="wifi.show_qr">QR Code anzeigen</span>
+                        </button>
+                        <button class="btn btn-danger" onclick="showChangePassword()">
+                            <i class="fas fa-key"></i> <span data-i18n="wifi.change_password">Passwort ändern</span>
+                        </button>
+                    </div>
+                    
+                    <div id="additional-info" class="info-message" style="display: none;">
+                        <!-- Hier werden zusätzliche Informationen angezeigt -->
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    <a href="/" class="back-btn">
+                        <i class="fas fa-arrow-left"></i>
+                        <span data-i18n="wifi.back">Zurück zum Scoreboard</span>
+                    </a>
+                </div>
+                
+                <!-- QR Code Modal -->
+                <div id="qrModal" class="modal">
+                    <div class="modal-content">
+                        <h3><i class="fas fa-qrcode"></i> <span data-i18n="wifi.qr_title">QR Code für Verbindung</span></h3>
+                        <div id="qrCodeContainer" class="qr-code-container">
+                            <!-- QR Code wird hier eingefügt -->
+                        </div>
+                        <p style="color: rgba(255, 255, 255, 0.8); margin-bottom: 20px;" data-i18n="wifi.qr_subtitle">
+                            Scannen Sie mit Ihrem Smartphone, um eine Verbindung herzustellen
+                        </p>
+                        <button onclick="closeQRCode()" class="close-btn">
+                            <i class="fas fa-times"></i> <span data-i18n="wifi.close">Schließen</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Passwort Änderungs Modal -->
+                <div id="passwordModal" class="modal">
+                    <div class="modal-content">
+                        <h3><i class="fas fa-key"></i> <span data-i18n="wifi.password_change_title">WLAN Passwort ändern</span></h3>
+                        <p style="color: rgba(255, 255, 255, 0.8); margin-bottom: 20px;" data-i18n="wifi.password_change_subtitle">
+                            Geben Sie das aktuelle und das neue Passwort ein (mind. 8 Zeichen)
+                        </p>
+                        
+                        <form id="passwordForm" onsubmit="return changePassword(event)">
+                            <div class="form-group">
+                                <label for="currentPassword" data-i18n="wifi.current_password">Aktuelles Passwort:</label>
+                                <input type="password" id="currentPassword" class="form-control" required>
+                                <div id="currentPasswordError" class="error-message"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="newPassword" data-i18n="wifi.new_password">Neues Passwort:</label>
+                                <input type="password" id="newPassword" class="form-control" required 
+                                       minlength="8" oninput="checkPasswordStrength()">
+                                <div class="password-strength">
+                                    <div id="strengthBar" class="strength-bar"></div>
+                                </div>
+                                <div id="passwordStrengthText" style="font-size: 0.8em; color: rgba(255, 255, 255, 0.8); margin-top: 5px;"></div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="confirmPassword" data-i18n="wifi.confirm_password">Neues Passwort bestätigen:</label>
+                                <input type="password" id="confirmPassword" class="form-control" required>
+                                <div id="passwordMatchError" class="error-message"></div>
+                            </div>
+                            
+                            <div id="passwordSuccess" class="success-message"></div>
+                            <div id="passwordError" class="error-message"></div>
+                            
+                            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                <button type="button" onclick="closePasswordModal()" class="close-btn close-btn-secondary">
+                                    <i class="fas fa-times"></i> <span data-i18n="wifi.cancel">Abbrechen</span>
+                                </button>
+                                <button type="submit" id="submitPasswordBtn" class="close-btn">
+                                    <i class="fas fa-save"></i> <span data-i18n="wifi.change_password">Passwort ändern</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-left">
+                    <span data-i18n="common.version">Padel Scoreboard v1.0</span>
+                    <span class="footer-divider">•</span>
+                    <span id="currentTime">--:--:--</span>
+                </div>
+                <div class="footer-right">
+                    <a href="/wifi-info" class="footer-link">
+                        <i class="fas fa-info-circle"></i> <span data-i18n="nav.wifi_info">WLAN Info</span>
+                    </a>
+                    <span class="footer-divider">•</span>
+                    <span id="connectionStatus">Verbunden</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // WiFi Status Funktionen
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('✓ Kopiert: ' + text, 'success');
+            }).catch(err => {
+                showToast('Fehler beim Kopieren: ' + err, 'error');
+            });
+        }
+        
+        function updateWifiStatus() {
+            fetch('/api/wifi-status')
+                .then(response => response.json())
+                .then(data => {
+                    updateStatusDisplay(data);
+                    updateAdditionalInfo(data);
+                    
+                    // Update header wifi status
+                    updateHeaderWifiStatus(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching WiFi status:', error);
+                    document.getElementById('status-text').textContent = getTranslation('wifi.status_error') || 'Status: Fehler beim Laden';
+                    document.getElementById('status-indicator').className = 'status-indicator status-inactive';
+                });
+        }
+        
+        function updateStatusDisplay(data) {
+            const indicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            
+            if (data.active) {
+                indicator.className = 'status-indicator status-active';
+                statusText.textContent = 'Status: Aktiv';
+                statusText.innerHTML = 'Status: <span style="color: #4CAF50;">Aktiv ✅</span>';
+            } else {
+                indicator.className = 'status-indicator status-inactive';
+                statusText.textContent = 'Status: Inaktiv';
+                statusText.innerHTML = 'Status: <span style="color: #f44336;">Inaktiv ❌</span>';
+            }
+            
+            if (data.ssid) {
+                document.getElementById('ssid').textContent = data.ssid;
+                document.getElementById('ip').textContent = data.ip || '10.20.1.1';
+                document.getElementById('url').textContent = `http://${data.ip || '10.20.1.1'}:8000`;
+                document.getElementById('password').textContent = data.password || 'openPadel';
+            }
+        }
+        
+        function updateHeaderWifiStatus(data) {
+            const badge = document.getElementById('wifiStatusBadge');
+            if (!badge) return;
+            
+            if (data.active) {
+                badge.innerHTML = `<i class="fas fa-wifi"></i> <span>${data.ssid || 'Aktiv'}</span>`;
+                badge.classList.add('active');
+                badge.classList.remove('inactive');
+            } else {
+                badge.innerHTML = `<i class="fas fa-wifi-slash"></i> <span>Offline</span>`;
+                badge.classList.add('inactive');
+                badge.classList.remove('active');
+            }
+        }
+        
+        function updateAdditionalInfo(data) {
+            const infoDiv = document.getElementById('additional-info');
+            let html = '';
+            
+            if (data.config_exists) {
+                html += `<p><strong><i class="fas fa-id-card"></i> Geräte-ID:</strong> ${data.ssid?.replace('openpadel_', '') || 'Unbekannt'}</p>`;
+            }
+            
+            if (data.hostapd_status) {
+                html += `<p><strong><i class="fas fa-server"></i> Hostapd Status:</strong> ${data.hostapd_status}</p>`;
+            }
+            
+            html += `<p><strong><i class="fas fa-network-wired"></i> IP-Bereich:</strong> 10.20.1.100 - 10.20.1.200</p>`;
+            html += `<p><strong><i class="fas fa-mask"></i> Subnetzmaske:</strong> 255.255.255.0</p>`;
+            html += `<p><strong><i class="fas fa-route"></i> Gateway:</strong> 10.20.1.1</p>`;
+            html += `<p><strong><i class="fas fa-database"></i> DNS-Server:</strong> 10.20.1.1</p>`;
+            
+            infoDiv.innerHTML = html;
+            infoDiv.style.display = 'block';
+        }
+        
+        function restartWifi() {
+            const btn = document.getElementById('restart-btn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starte neu...';
+            
+            fetch('/api/wifi-restart', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    showToast('WLAN Hotspot wird neu gestartet...', 'info');
+                    setTimeout(() => {
+                        updateWifiStatus();
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                        showToast('WLAN Hotspot neu gestartet!', 'success');
+                    }, 5000);
+                })
+                .catch(error => {
+                    showToast('Fehler beim Neustart: ' + error, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
+        }
+        
+        // QR Code Funktionen
+        function showQRCode() {
+            const ssid = document.getElementById('ssid').textContent;
+            const password = document.getElementById('password').textContent;
+            
+            // Erstelle WIFI String für QR Code
+            const wifiString = `WIFI:S:${ssid};T:WPA;P:${password};;`;
+            
+            // QR Code generieren mit API
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(wifiString)}`;
+            
+            document.getElementById('qrCodeContainer').innerHTML = `
+                <img src="${qrUrl}" alt="QR Code" style="max-width: 200px; height: auto; border-radius: 10px;">
+                <p style="margin-top: 10px; font-size: 0.9rem; color: #333;">
+                    <strong>SSID:</strong> ${ssid}<br>
+                    <strong>Passwort:</strong> ${password}
+                </p>
+            `;
+            
+            document.getElementById('qrModal').style.display = 'flex';
+        }
+        
+        function closeQRCode() {
+            document.getElementById('qrModal').style.display = 'none';
+        }
+        
+        // Passwort Änderungs Funktionen
+        function showChangePassword() {
+            document.getElementById('passwordModal').style.display = 'flex';
+            document.getElementById('passwordForm').reset();
+            document.getElementById('passwordError').style.display = 'none';
+            document.getElementById('passwordSuccess').style.display = 'none';
+            document.getElementById('strengthBar').style.width = '0%';
+            document.getElementById('passwordStrengthText').textContent = '';
+        }
+        
+        function closePasswordModal() {
+            document.getElementById('passwordModal').style.display = 'none';
+        }
+        
+        function checkPasswordStrength() {
+            const password = document.getElementById('newPassword').value;
+            const strengthBar = document.getElementById('strengthBar');
+            const strengthText = document.getElementById('passwordStrengthText');
+            
+            let strength = 0;
+            let text = '';
+            let colorClass = 'strength-weak';
+            
+            if (password.length >= 8) strength += 25;
+            if (/[a-z]/.test(password)) strength += 25;
+            if (/[A-Z]/.test(password)) strength += 25;
+            if (/[0-9]/.test(password)) strength += 25;
+            
+            strengthBar.style.width = strength + '%';
+            
+            if (strength < 50) {
+                text = 'Schwach';
+                colorClass = 'strength-weak';
+            } else if (strength < 75) {
+                text = 'Mittel';
+                colorClass = 'strength-medium';
+            } else {
+                text = 'Stark';
+                colorClass = 'strength-strong';
+            }
+            
+            strengthBar.className = 'strength-bar ' + colorClass;
+            strengthText.textContent = `Sicherheit: ${text}`;
+        }
+        
+        function changePassword(event) {
+            event.preventDefault();
+            
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // Reset error messages
+            document.getElementById('passwordError').style.display = 'none';
+            document.getElementById('currentPasswordError').style.display = 'none';
+            document.getElementById('passwordMatchError').style.display = 'none';
+            
+            // Validation
+            if (newPassword.length < 8) {
+                document.getElementById('passwordError').textContent = 'Das neue Passwort muss mindestens 8 Zeichen lang sein.';
+                document.getElementById('passwordError').style.display = 'block';
+                return false;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                document.getElementById('passwordMatchError').textContent = 'Die Passwörter stimmen nicht überein.';
+                document.getElementById('passwordMatchError').style.display = 'block';
+                return false;
+            }
+            
+            // Disable button and show loading
+            const submitBtn = document.getElementById('submitPasswordBtn');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ändere...';
+            
+            // Send request to server
+            fetch('/api/wifi-change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('passwordSuccess').textContent = data.message || 'Passwort erfolgreich geändert!';
+                    document.getElementById('passwordSuccess').style.display = 'block';
+                    
+                    // Update password display
+                    document.getElementById('password').textContent = newPassword;
+                    
+                    // Close modal after 2 seconds
+                    setTimeout(() => {
+                        closePasswordModal();
+                        showToast('Passwort erfolgreich geändert!', 'success');
+                    }, 2000);
+                } else {
+                    throw new Error(data.message || 'Unbekannter Fehler');
+                }
+            })
+            .catch(error => {
+                let errorMessage = 'Fehler beim Ändern des Passworts.';
+                
+                if (error.message && error.message.includes('aktuelles Passwort')) {
+                    document.getElementById('currentPasswordError').textContent = error.message;
+                    document.getElementById('currentPasswordError').style.display = 'block';
+                } else if (error.message) {
+                    document.getElementById('passwordError').textContent = error.message;
+                    document.getElementById('passwordError').style.display = 'block';
+                } else {
+                    document.getElementById('passwordError').textContent = errorMessage;
+                    document.getElementById('passwordError').style.display = 'block';
+                }
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            });
+            
+            return false;
+        }
+        
+        // Helper Functions
+        function showToast(message, type = 'info') {
+            // Remove existing toast
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            let icon = '<i class="fas fa-info-circle"></i>';
+            if (type === 'success') icon = '<i class="fas fa-check-circle"></i>';
+            if (type === 'error') icon = '<i class="fas fa-exclamation-circle"></i>';
+            
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // Uhrzeit aktualisieren
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('de-DE');
+            document.getElementById('currentTime').textContent = timeString;
+        }
+        
+        // Theme Toggle
+        function toggleTheme() {
+            const body = document.body;
+            const isDark = body.getAttribute('data-theme') === 'dark';
+            body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            
+            const icon = document.querySelector('#themeToggle i');
+            icon.className = isDark ? 'fas fa-moon' : 'fas fa-sun';
+            
+            showToast(isDark ? '🌙 Dunkelmodus aktiviert' : '☀️ Hellmodus aktiviert', 'info');
+        }
+        
+        // Initial status check
+        updateWifiStatus();
+        updateClock();
+        setInterval(updateClock, 1000);
+        
+        // Update every 10 seconds
+        setInterval(updateWifiStatus, 10000);
+        
+        // Close modals when clicking outside
+        window.addEventListener('click', (event) => {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        });
+        
+        // Verbindungsstatus
+        setInterval(() => {
+            const status = document.getElementById('connectionStatus');
+            if (status) {
+                status.textContent = 'Verbunden';
+                status.style.color = '#4CAF50';
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
