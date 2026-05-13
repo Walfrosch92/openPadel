@@ -26,14 +26,22 @@ echo -e "${GREEN}║         openPadel - Vollständige Installation             
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}FEHLER: Dieses Skript muss als root ausgeführt werden${NC}"
     echo -e "Bitte mit ${YELLOW}'sudo ./install_complete.sh'${NC} ausführen"
     exit 1
 fi
 
+# Raspberry Pi 5 (Bookworm) nutzt /boot/firmware/config.txt
+if [ -f /boot/firmware/config.txt ]; then
+    BOOT_CONFIG="/boot/firmware/config.txt"
+else
+    BOOT_CONFIG="/boot/config.txt"
+fi
+
 echo -e "${BLUE}Arbeitsverzeichnis:${NC} $SCRIPT_DIR"
 echo -e "${BLUE}Benutzer:${NC} $ACTUAL_USER"
+echo -e "${BLUE}Boot-Config:${NC} $BOOT_CONFIG"
 echo ""
 
 # ==============================================================================
@@ -70,13 +78,20 @@ echo ""
 
 # SPI aktivieren
 echo -e "${YELLOW}[1/6]${NC} Aktiviere SPI Interface..."
-if ! grep -q "^dtparam=spi=on" /boot/config.txt; then
-    echo "dtparam=spi=on" >> /boot/config.txt
-    echo -e "${GREEN}SPI in /boot/config.txt aktiviert${NC}"
+if ! grep -q "^dtparam=spi=on" "$BOOT_CONFIG"; then
+    echo "dtparam=spi=on" >> "$BOOT_CONFIG"
+    echo -e "${GREEN}SPI in $BOOT_CONFIG aktiviert${NC}"
     SPI_CHANGED=1
 else
     echo -e "${GREEN}SPI bereits aktiviert${NC}"
     SPI_CHANGED=0
+fi
+
+# Kamera aktivieren
+if ! grep -q "^camera_auto_detect" "$BOOT_CONFIG"; then
+    echo "camera_auto_detect=1" >> "$BOOT_CONFIG"
+    echo -e "${GREEN}Kamera in $BOOT_CONFIG aktiviert${NC}"
+    SPI_CHANGED=1
 fi
 
 # SPI-Modul laden
@@ -92,7 +107,13 @@ usermod -a -G spi,gpio $ACTUAL_USER 2>/dev/null || true
 # System-Pakete
 echo -e "${YELLOW}[4/6]${NC} Installiere System-Pakete..."
 apt-get update -qq
-apt-get install -y python3-pip python3-venv python3-spidev python3-rpi.gpio python3-pil git -qq 2>/dev/null || true
+apt-get install -y \
+    python3-pip python3-venv python3-spidev python3-rpi.gpio python3-pil git \
+    rpicam-apps \
+    qrencode \
+    iw \
+    fonts-dejavu-core \
+    -qq 2>/dev/null || true
 
 # Waveshare Library
 echo -e "${YELLOW}[5/6]${NC} Erstelle Waveshare EPD Library..."
@@ -677,6 +698,7 @@ $ACTUAL_USER ALL=(ALL) NOPASSWD: /bin/systemctl status dnsmasq
 $ACTUAL_USER ALL=(ALL) NOPASSWD: /bin/cp /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.conf.backup
 $ACTUAL_USER ALL=(ALL) NOPASSWD: /bin/mv /tmp/hostapd.conf.new /etc/hostapd/hostapd.conf
 $ACTUAL_USER ALL=(ALL) NOPASSWD: /bin/chmod 600 /etc/hostapd/hostapd.conf
+$ACTUAL_USER ALL=(ALL) NOPASSWD: /usr/sbin/iw dev wlan0 station dump
 EOFSUDO
 
 chmod 0440 /etc/sudoers.d/padel-wifi
