@@ -426,7 +426,11 @@ apt-get install -y \
     qrencode \
     iw \
     fonts-dejavu-core \
+    libgl1 libglib2.0-0 \
     -qq 2>/dev/null || true
+
+# Camera access
+usermod -aG video "$ACTUAL_USER" 2>/dev/null || true
 
 echo -e "${YELLOW}[5/6]${NC} ${MSG_LIB}"
 LIB_DIR="$SCRIPT_DIR/lib/waveshare_epd"

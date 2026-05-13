@@ -883,8 +883,7 @@ class GestureRecognizer:
         while self.is_running:
             frame = self.camera.get_frame()
             if frame is None:
-                logger.warning("Kann Frame nicht lesen")
-                time.sleep(0.1)
+                time.sleep(1.0)
                 continue
             
             frame_counter += 1
