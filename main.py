@@ -603,8 +603,17 @@ class WiFiAPManager:
         return WiFiAPSettings()
     
     def save_settings(self, settings: WiFiAPSettings):
-        """Speichert WiFi AP Einstellungen (nur für interne Synchronisation)"""
+        """Speichert WiFi AP Einstellungen in Speicher und wifi_ap_settings.json"""
         self.settings = settings
+        try:
+            import json as _json
+            self.data_file.parent.mkdir(parents=True, exist_ok=True)
+            self.data_file.write_text(_json.dumps(
+                {"ssid": settings.ssid, "password": settings.password}, indent=2
+            ))
+            logger.info(f"wifi_ap_settings.json geschrieben: SSID={settings.ssid}")
+        except Exception as e:
+            logger.warning(f"Konnte wifi_ap_settings.json nicht schreiben: {e}")
         logger.info(f"WiFi AP Einstellungen aktualisiert: SSID={settings.ssid}")
     
     def reload_from_hostapd(self):
