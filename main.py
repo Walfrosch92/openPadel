@@ -557,41 +557,49 @@ class WebcamSettingsManager:
 
 class WiFiAPManager:
     """Verwaltet WiFi Access Point Einstellungen"""
-    
+
     def __init__(self, data_dir: Path = Path("data")):
         self.hostapd_conf = Path("/etc/hostapd/hostapd.conf")
+        self.data_file = Path(data_dir) / "wifi_ap_settings.json"
         self.settings = self.load_settings()
-    
+
     def load_settings(self) -> WiFiAPSettings:
-        """Lädt WiFi AP Einstellungen direkt aus hostapd.conf"""
+        """Lädt WiFi AP Einstellungen: erst hostapd.conf, dann data/wifi_ap_settings.json"""
+        # 1) Versuche hostapd.conf (braucht ggf. root-Rechte)
         try:
-            # Lese aus hostapd.conf
             if self.hostapd_conf.exists():
                 ssid = None
                 password = None
-                
                 with open(self.hostapd_conf, 'r') as f:
                     for line in f:
                         line = line.strip()
-                        # Ignoriere Kommentare und leere Zeilen
                         if not line or line.startswith('#'):
                             continue
                         if line.startswith('ssid='):
                             ssid = line.split('=', 1)[1].strip()
-                            logger.debug(f"SSID aus hostapd.conf: {ssid}")
                         elif line.startswith('wpa_passphrase='):
                             password = line.split('=', 1)[1].strip()
-                            logger.debug(f"Passwort aus hostapd.conf gelesen")
-                
                 if ssid and password:
                     logger.info(f"WiFi AP Einstellungen aus hostapd.conf geladen: SSID={ssid}")
                     return WiFiAPSettings(ssid=ssid, password=password, enabled=True)
-                else:
-                    logger.warning(f"Unvollständige Daten in hostapd.conf: ssid={'gesetzt' if ssid else 'fehlt'}, password={'gesetzt' if password else 'fehlt'}")
+                logger.warning("Unvollständige Daten in hostapd.conf")
         except Exception as e:
-            logger.warning(f"Fehler beim Laden aus hostapd.conf: {e}")
-        
-        logger.warning("hostapd.conf nicht gefunden oder fehlerhaft, verwende Defaults")
+            logger.warning(f"hostapd.conf nicht lesbar ({e}), versuche wifi_ap_settings.json")
+
+        # 2) Fallback: data/wifi_ap_settings.json (vom Install-Script geschrieben)
+        try:
+            if self.data_file.exists():
+                import json as _json
+                data = _json.loads(self.data_file.read_text())
+                ssid = data.get("ssid", "").strip()
+                password = data.get("password", "").strip()
+                if ssid:
+                    logger.info(f"WiFi AP Einstellungen aus wifi_ap_settings.json geladen: SSID={ssid}")
+                    return WiFiAPSettings(ssid=ssid, password=password or "openPadel", enabled=True)
+        except Exception as e:
+            logger.warning(f"wifi_ap_settings.json nicht lesbar: {e}")
+
+        logger.warning("Keine WiFi-Konfiguration gefunden, verwende Defaults")
         return WiFiAPSettings()
     
     def save_settings(self, settings: WiFiAPSettings):
@@ -2491,19 +2499,10 @@ async def get_wifi_status():
             except:
                 hostapd_active = False
             
-            # Hole SSID und Passwort aus hostapd config falls vorhanden
-            ssid = settings.ssid
-            password = settings.password
-            try:
-                with open('/etc/hostapd/hostapd.conf', 'r') as f:
-                    config = f.read()
-                    for line in config.split('\n'):
-                        if line.startswith('ssid='):
-                            ssid = line.split('=', 1)[1].strip()
-                        elif line.startswith('wpa_passphrase='):
-                            password = line.split('=', 1)[1].strip()
-            except:
-                pass
+            # Aktuelle SSID aus dem Manager (liest hostapd.conf oder wifi_ap_settings.json)
+            current = wifi_ap_manager.reload_from_hostapd()
+            ssid = current.ssid
+            password = current.password
             
             return {
                 "active": hostapd_active,
