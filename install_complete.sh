@@ -463,14 +463,20 @@ def _claim_out(h, pin):
     try:
         lgpio.gpio_claim_output(h, pin)
     except lgpio.error:
-        lgpio.gpio_free(h, pin)
+        try:
+            lgpio.gpio_free(h, pin)
+        except lgpio.error:
+            pass  # not allocated to this handle – ignore
         lgpio.gpio_claim_output(h, pin)
 
 def _claim_in(h, pin):
     try:
         lgpio.gpio_claim_input(h, pin)
     except lgpio.error:
-        lgpio.gpio_free(h, pin)
+        try:
+            lgpio.gpio_free(h, pin)
+        except lgpio.error:
+            pass  # not allocated to this handle – ignore
         lgpio.gpio_claim_input(h, pin)
 
 def digital_write(pin, value):
@@ -821,6 +827,9 @@ echo ""
 
 DISPLAY_OK=0
 if [ -e /dev/spidev0.0 ]; then
+    # Stop display service if running (re-install scenario – GPIOs would be busy)
+    systemctl stop padel-display.service 2>/dev/null || true
+    sleep 1
     echo -e "${YELLOW}${MSG_TEST_START}${NC}"
     if python3 "$SCRIPT_DIR/test_display.py" 2>&1; then
         echo ""
