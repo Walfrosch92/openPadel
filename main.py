@@ -874,17 +874,34 @@ class GestureRecognizer:
             self.hands.close()
         logger.info("Webcam gestoppt")
     
+    def _restart_camera(self):
+        """Startet nur die Kamera neu (ohne capture loop neu zu starten)"""
+        try:
+            if self.camera:
+                self.camera.stop()
+            settings = self.settings_manager.settings
+            self.camera = Camera(width=settings.width, height=settings.height, fps=settings.fps)
+            logger.info("[GestureRecognizer] Camera restarted by watchdog")
+        except Exception as e:
+            logger.error(f"[GestureRecognizer] Camera restart failed: {e}")
+
     def _capture_loop(self):
         """Haupt-Capture-Loop (läuft in separatem Thread)"""
         frame_counter = 0
         gesture_cooldown_until = 0
+        last_frame_time = time.time()
         logger.info("[GestureRecognizer] Capture loop started")
-        
+
         while self.is_running:
             frame = self.camera.get_frame()
             if frame is None:
+                if time.time() - last_frame_time > 15:
+                    logger.warning("[GestureRecognizer] No frame for 15s – restarting camera")
+                    self._restart_camera()
+                    last_frame_time = time.time()
                 time.sleep(1.0)
                 continue
+            last_frame_time = time.time()
             
             frame_counter += 1
 
@@ -2171,13 +2188,22 @@ async def get_last_gesture():
 @app.post("/api/webcam/settings")
 async def update_webcam_settings(settings: WebcamSettings):
     """Aktualisiert Webcam-Einstellungen"""
+    old = webcam_settings_manager.settings
     webcam_settings_manager.save_settings(settings)
-    
-    # Webcam neu starten
-    gesture_recognizer.stop()
-    if settings.enabled:
-        gesture_recognizer.start()
-    
+
+    # Kamera nur neu starten wenn sich kamera-relevante Parameter geändert haben
+    camera_changed = (
+        old.enabled != settings.enabled or
+        old.width != settings.width or
+        old.height != settings.height or
+        old.fps != settings.fps or
+        old.camera_index != settings.camera_index
+    )
+    if camera_changed:
+        gesture_recognizer.stop()
+        if settings.enabled:
+            gesture_recognizer.start()
+
     return {"status": "success"}
 
 @app.post("/api/webcam/roi")
