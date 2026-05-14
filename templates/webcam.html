@@ -20,6 +20,19 @@
             background: rgba(0, 0, 0, 0.3);
             padding: 10px;
             text-align: center;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nav-logo {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
         }
         .nav a {
             color: #fff;
@@ -209,11 +222,12 @@
 </head>
 <body>
     <nav class="nav">
+        <img src="/poweroff.jpg" alt="openPadel" class="nav-logo">
         <a href="/" data-i18n="nav.scoreboard">Scoreboard</a>
         <a href="/webcam" data-i18n="nav.camera">Gestures</a>
         <a href="/stats" data-i18n="nav.stats">Statistics</a>
-        <a href="/settings" data-i18n="nav.settings">Settings</a>
-        <a href="/admin" data-i18n="nav.admin">Admin</a>
+        <a href="/settings" data-i18n="nav.settings">New Game</a>
+        <a href="/admin" data-i18n="nav.admin">Settings</a>
     </nav>
 
     <div class="container">

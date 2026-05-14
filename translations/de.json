@@ -4,8 +4,8 @@
     "scoreboard": "Scoreboard",
     "camera": "Gesten",
     "stats": "Statistik",
-    "settings": "Einstellungen",
-    "admin": "Admin",
+    "settings": "Neues Spiel",
+    "admin": "Einstellungen",
     "wifi_info": "WLAN Info"
   },
   "scoreboard": {

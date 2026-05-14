@@ -23,6 +23,19 @@
             background: rgba(0, 0, 0, 0.3);
             padding: 10px;
             text-align: center;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nav-logo {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
         }
         .nav a {
             color: #fff;
@@ -75,6 +88,19 @@
             padding: 30px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
             margin-bottom: 20px;
+            position: relative;
+        }
+        .scoreboard-cam {
+            position: absolute;
+            bottom: 12px;
+            right: 14px;
+            width: 150px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(102, 126, 234, 0.6);
+            display: none;
+            z-index: 10;
         }
         .team-row {
             display: flex;
@@ -312,10 +338,11 @@
 </head>
 <body>
     <nav class="nav">
+        <img src="/poweroff.jpg" alt="openPadel" class="nav-logo">
         <a href="/" data-i18n="nav.scoreboard">{{ t.nav.scoreboard }}</a>
         <a href="/webcam" data-i18n="nav.camera">{{ t.nav.camera }}</a>
         <a href="/stats" data-i18n="nav.stats">{{ t.nav.stats }}</a>
-        <a href="/settings" data-i18n="nav.settings">Settings</a>
+        <a href="/settings" data-i18n="nav.settings">{{ t.nav.settings }}</a>
         <a href="/admin" data-i18n="nav.admin">{{ t.nav.admin }}</a>
     </nav>
 
@@ -329,6 +356,7 @@
         </div>
 
         <div class="scoreboard">
+            <img id="scoreboard-cam" class="scoreboard-cam" src="/webcam/stream" alt="cam">
             <div class="team-row team-a" id="team-a-row">
                 <div class="team-name">
                     <span class="serve-indicator"></span>
@@ -595,6 +623,22 @@
         updateScoreboard(currentState);
         loadGameModes();
         setInterval(fetchState, 1000);
+
+        // Show/hide camera preview based on gesture recognition setting
+        async function updateCamPreview() {
+            try {
+                const r = await fetch('/api/webcam/settings');
+                const d = await r.json();
+                const cam = document.getElementById('scoreboard-cam');
+                if (d.gesture_recognition_enabled && d.enabled) {
+                    cam.style.display = 'block';
+                } else {
+                    cam.style.display = 'none';
+                }
+            } catch (e) {}
+        }
+        updateCamPreview();
+        setInterval(updateCamPreview, 5000);
         
         function showMatchEndModal(winnerName) {
             const modal = document.getElementById('match-end-modal');
