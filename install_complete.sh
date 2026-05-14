@@ -402,12 +402,16 @@ else
     echo -e "${GREEN}${MSG_SPI_EXISTS}${NC}"
 fi
 
-if ! grep -q "^camera_auto_detect" "$BOOT_CONFIG"; then
-    echo "camera_auto_detect=1" >> "$BOOT_CONFIG"
+if grep -q "^camera_auto_detect=0" "$BOOT_CONFIG" && grep -q "^dtoverlay=imx219" "$BOOT_CONFIG"; then
+    echo -e "${GREEN}${MSG_CAM_EXISTS}${NC}"
+else
+    sed -i '/^camera_auto_detect/d' "$BOOT_CONFIG"
+    echo "camera_auto_detect=0" >> "$BOOT_CONFIG"
+    if ! grep -q "^dtoverlay=imx219" "$BOOT_CONFIG"; then
+        echo "dtoverlay=imx219" >> "$BOOT_CONFIG"
+    fi
     echo -e "${GREEN}${MSG_CAM_DONE} $BOOT_CONFIG${NC}"
     SPI_CHANGED=1
-else
-    echo -e "${GREEN}${MSG_CAM_EXISTS}${NC}"
 fi
 
 echo -e "${YELLOW}[2/6]${NC} ${MSG_SPI_MODULES}"
