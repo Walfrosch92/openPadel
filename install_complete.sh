@@ -1046,6 +1046,12 @@ fi
 SSID="openPadel_${SERIAL}"
 PASSWORD="openPadel"
 
+# Generierte SSID in App-Settings schreiben damit die App denselben SSID anzeigt
+cat > "$SCRIPT_DIR/data/wifi_ap_settings.json" << EOFJSON
+{"ssid": "$SSID", "password": "$PASSWORD"}
+EOFJSON
+chown "$ACTUAL_USER:$ACTUAL_USER" "$SCRIPT_DIR/data/wifi_ap_settings.json"
+
 echo -e "${BLUE}${MSG_SSID_LABEL}${NC} $SSID"
 echo -e "${BLUE}${MSG_PASS_LABEL}${NC} $PASSWORD"
 
