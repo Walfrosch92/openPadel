@@ -125,7 +125,10 @@ case "$LANGUAGE" in
     MSG_WEB_ETH="Via Ethernet:    "
     MSG_HINT="Note: SSID and password can be changed via the web interface!"
     MSG_ENJOY="Enjoy openPadel!"
-    MSG_REBOOT_QUESTION="Do you want to reboot now?"
+    MSG_REBOOT_QUESTION="Reboot Raspberry Pi now?"
+    MSG_REBOOT_OPT1="1) Reboot now (recommended)"
+    MSG_REBOOT_OPT2="2) Later – reboot manually with: sudo reboot"
+    MSG_REBOOT_CHOICE="Your choice (1/2): "
     MSG_REBOOTING="System is rebooting..."
     MSG_REBOOT_MANUAL="Please reboot manually: sudo reboot"
     MSG_ACCESS_QUESTION_PREFIX="Can you access http://"
@@ -228,7 +231,10 @@ case "$LANGUAGE" in
     MSG_WEB_ETH="Vía Ethernet:     "
     MSG_HINT="Nota: ¡El SSID y la contraseña se pueden cambiar desde la interfaz web!"
     MSG_ENJOY="¡Disfruta openPadel!"
-    MSG_REBOOT_QUESTION="¿Quieres reiniciar ahora?"
+    MSG_REBOOT_QUESTION="¿Reiniciar el Raspberry Pi ahora?"
+    MSG_REBOOT_OPT1="1) Reiniciar ahora (recomendado)"
+    MSG_REBOOT_OPT2="2) Más tarde – reiniciar manualmente con: sudo reboot"
+    MSG_REBOOT_CHOICE="Tu elección (1/2): "
     MSG_REBOOTING="Reiniciando el sistema..."
     MSG_REBOOT_MANUAL="Por favor reinicia manualmente: sudo reboot"
     MSG_ACCESS_QUESTION_PREFIX="¿Puedes acceder a http://"
@@ -331,7 +337,10 @@ case "$LANGUAGE" in
     MSG_WEB_ETH="Über Ethernet:       "
     MSG_HINT="Hinweis: SSID und Passwort können über das Web-Interface geändert werden!"
     MSG_ENJOY="Viel Spaß mit openPadel!"
-    MSG_REBOOT_QUESTION="Möchtest du jetzt neu starten?"
+    MSG_REBOOT_QUESTION="Raspberry Pi jetzt neu starten?"
+    MSG_REBOOT_OPT1="1) Jetzt neu starten (empfohlen)"
+    MSG_REBOOT_OPT2="2) Später – manuell neu starten mit: sudo reboot"
+    MSG_REBOOT_CHOICE="Deine Wahl (1/2): "
     MSG_REBOOTING="System wird neu gestartet..."
     MSG_REBOOT_MANUAL="Bitte manuell neu starten mit: sudo reboot"
     MSG_ACCESS_QUESTION_PREFIX="Kannst du auf http://"
@@ -1252,17 +1261,20 @@ echo ""
 echo -e "${YELLOW}${MSG_HINT}${NC}"
 echo ""
 
-if [ $SPI_CHANGED -eq 1 ]; then
+echo ""
+echo -e "${YELLOW}${MSG_REBOOT_QUESTION}${NC}"
+echo -e "  ${MSG_REBOOT_OPT1}"
+echo -e "  ${MSG_REBOOT_OPT2}"
+echo ""
+read -p "$MSG_REBOOT_CHOICE" REBOOT_CHOICE
+if [ "$REBOOT_CHOICE" = "1" ]; then
     echo ""
-    if ask_yes_no "$MSG_REBOOT_QUESTION"; then
-        echo -e "${GREEN}${MSG_REBOOTING}${NC}"
-        sleep 2
-        reboot
-    else
-        echo -e "${YELLOW}${MSG_REBOOT_MANUAL}${NC}"
-    fi
+    echo -e "${GREEN}${MSG_REBOOTING}${NC}"
+    sleep 2
+    reboot
+else
+    echo ""
+    echo -e "${GREEN}${MSG_ENJOY}${NC}"
+    echo -e "${YELLOW}${MSG_REBOOT_MANUAL}${NC}"
+    echo ""
 fi
-
-echo ""
-echo -e "${GREEN}${MSG_ENJOY}${NC}"
-echo ""
