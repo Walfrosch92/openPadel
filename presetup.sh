@@ -117,11 +117,17 @@ else
     CHANGED=1
 fi
 
-# Enable camera
-if grep -q "^camera_auto_detect" "$BOOT_CONFIG"; then
+# Enable camera (IMX219: auto-detect off, explicit overlay required)
+if grep -q "^camera_auto_detect=0" "$BOOT_CONFIG" && grep -q "^dtoverlay=imx219" "$BOOT_CONFIG"; then
     echo -e "${GREEN}✓ ${MSG_CAM_EXISTS}${NC}"
 else
-    echo "camera_auto_detect=1" >> "$BOOT_CONFIG"
+    # Remove any existing camera_auto_detect line and replace with =0
+    sed -i '/^camera_auto_detect/d' "$BOOT_CONFIG"
+    echo "camera_auto_detect=0" >> "$BOOT_CONFIG"
+    # Add imx219 overlay if not already present
+    if ! grep -q "^dtoverlay=imx219" "$BOOT_CONFIG"; then
+        echo "dtoverlay=imx219" >> "$BOOT_CONFIG"
+    fi
     echo -e "${GREEN}✓ ${MSG_CAM_DONE}${NC}"
     CHANGED=1
 fi
