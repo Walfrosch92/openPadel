@@ -375,7 +375,38 @@
                 <button class="btn btn-primary" onclick="saveWiFiAPSettings()" data-i18n="admin.save_settings">
                     Einstellungen speichern
                 </button>
-                
+
+                <!-- Apply-Dialog: erscheint nach dem Speichern -->
+                <div id="wifi-apply-box" style="display:none; margin-top:16px; padding:16px;
+                     background:#e8f4f8; border-radius:10px; border:1px solid #b3d9ea;">
+                    <p style="margin:0 0 12px; font-weight:600; color:#1565c0;">
+                        ✅ Einstellungen gespeichert.<br>
+                        Jetzt auf den WLAN-Broadcast anwenden?
+                    </p>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="applyWiFiSettings()" id="wifi-apply-btn">
+                            📡 Jetzt anwenden
+                        </button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('wifi-apply-box').style.display='none'">
+                            Später
+                        </button>
+                    </div>
+                    <div id="wifi-apply-result" style="margin-top:10px;"></div>
+                </div>
+
+                <!-- Manuell-Dialog: erscheint wenn sudo fehlt -->
+                <div id="wifi-manual-box" style="display:none; margin-top:16px; padding:16px;
+                     background:#fff3cd; border-radius:10px; border:1px solid #ffc107;">
+                    <p style="margin:0 0 8px; font-weight:600; color:#856404;">
+                        ⚠️ Sudo-Berechtigung fehlt. Führe diesen Befehl einmalig am Pi aus:
+                    </p>
+                    <code id="wifi-manual-cmd" style="display:block; background:#fff; padding:10px;
+                          border-radius:6px; font-size:0.85em; word-break:break-all; color:#333;"></code>
+                    <button onclick="copyManualCmd()" style="margin-top:8px; padding:6px 14px;
+                            border:1px solid #856404; border-radius:6px; background:#fff;
+                            cursor:pointer; font-size:0.9em;">📋 Kopieren</button>
+                </div>
+
                 <div class="warning-box">
                     <strong>Hinweis:</strong> Änderungen erfordern einen Neustart des Systems
                 </div>
@@ -618,7 +649,7 @@
         }
 
         async function saveWiFiAPSettings() {
-            const ssid = document.getElementById('wifi-ap-ssid').value;
+            const ssid = document.getElementById('wifi-ap-ssid').value.trim();
             const password = document.getElementById('wifi-ap-password').value;
             const enabled = document.getElementById('wifi-ap-enabled').checked;
 
@@ -627,6 +658,10 @@
                 return;
             }
 
+            // Alle Dialoge zurücksetzen
+            document.getElementById('wifi-apply-box').style.display = 'none';
+            document.getElementById('wifi-manual-box').style.display = 'none';
+
             try {
                 const response = await fetch('/api/wifi-ap/settings', {
                     method: 'POST',
@@ -634,18 +669,65 @@
                     body: JSON.stringify({ ssid, password, enabled })
                 });
                 const data = await response.json();
-                
-                if (data.status === 'success' || response.ok) {
-                    showWiFiAPStatus('Einstellungen erfolgreich gespeichert', 'success');
-                    // QR Code aktualisieren
+
+                if (data.status === 'saved' || response.ok) {
+                    showWiFiAPStatus('Einstellungen gespeichert.', 'success');
                     updateWiFiQRCode(ssid, password);
+                    // Apply-Dialog anzeigen
+                    document.getElementById('wifi-apply-box').style.display = 'block';
+                    document.getElementById('wifi-apply-result').innerHTML = '';
                 } else {
-                    showWiFiAPStatus('Fehler beim Speichern der Einstellungen', 'error');
+                    showWiFiAPStatus('Fehler beim Speichern', 'error');
                 }
             } catch (error) {
-                console.error('Error saving WiFi AP settings:', error);
-                showWiFiAPStatus('Fehler beim Speichern der Einstellungen', 'error');
+                showWiFiAPStatus('Fehler beim Speichern', 'error');
             }
+        }
+
+        async function applyWiFiSettings() {
+            const btn = document.getElementById('wifi-apply-btn');
+            const result = document.getElementById('wifi-apply-result');
+            btn.disabled = true;
+            btn.textContent = '⏳ Wird angewendet...';
+            result.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/wifi-ap/apply', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    result.innerHTML = `<span style="color:#155724;font-weight:600;">✅ ${data.message}</span>`;
+                    document.getElementById('wifi-apply-box').style.display = 'none';
+                    showWiFiAPStatus(data.message, 'success');
+                } else if (data.status === 'no_sudo') {
+                    // Sudo-Berechtigung fehlt → manuelle Befehlsanzeige
+                    document.getElementById('wifi-apply-box').style.display = 'none';
+                    const ssid = data.ssid || '';
+                    const pw = data.password || '';
+                    const cmd = `sudo sed -i 's/^ssid=.*/ssid=${ssid}/' /etc/hostapd/hostapd.conf && sudo sed -i 's/^wpa_passphrase=.*/wpa_passphrase=${pw}/' /etc/hostapd/hostapd.conf && sudo systemctl restart hostapd`;
+                    document.getElementById('wifi-manual-cmd').textContent = cmd;
+                    document.getElementById('wifi-manual-box').style.display = 'block';
+                } else {
+                    result.innerHTML = `<span style="color:#721c24;">❌ ${data.message}</span>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span style="color:#721c24;">❌ Verbindungsfehler</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📡 Jetzt anwenden';
+            }
+        }
+
+        function copyManualCmd() {
+            const cmd = document.getElementById('wifi-manual-cmd').textContent;
+            navigator.clipboard.writeText(cmd).then(() => {
+                const btn = event.target;
+                btn.textContent = '✅ Kopiert!';
+                setTimeout(() => btn.textContent = '📋 Kopieren', 2000);
+            });
         }
 
         // Language Functions

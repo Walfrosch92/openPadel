@@ -442,6 +442,11 @@ cat > "$SCRIPT_DIR/data/wifi_ap_settings.json" << EOFJSON
 EOFJSON
 chown "$ACTUAL_USER:$ACTUAL_USER" "$SCRIPT_DIR/data/wifi_ap_settings.json"
 
+cat > "$SCRIPT_DIR/data/wifi_config.json" << EOFJSON2
+{"ssid_suffix": "${SERIAL}", "country_code": "${COUNTRY_CODE}", "channel": 1, "created": "$(date -Iseconds)"}
+EOFJSON2
+chown "$ACTUAL_USER:$ACTUAL_USER" "$SCRIPT_DIR/data/wifi_config.json"
+
 echo -e "${BLUE}${MSG_SSID_LABEL}${NC} $SSID"
 echo -e "${BLUE}${MSG_PASS_LABEL}${NC} $PASSWORD"
 

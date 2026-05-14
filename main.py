@@ -2622,88 +2622,95 @@ async def get_wifi_ap_clients():
 
 @app.post("/api/wifi-ap/settings")
 async def update_wifi_ap_settings(settings: WiFiAPSettings):
-    """Aktualisiert WiFi AP Einstellungen in bestehender hostapd.conf"""
+    """Speichert WiFi AP Einstellungen in data/wifi_ap_settings.json (kein hostapd-Apply)"""
     wifi_ap_manager.save_settings(settings)
-    logger.info(f"WiFi AP Einstellungen aktualisiert: SSID={settings.ssid}")
-    
-    # Aktualisiere bestehende hostapd.conf (nur auf Raspberry Pi)
+    logger.info(f"WiFi AP Einstellungen gespeichert: SSID={settings.ssid}")
+    return {"status": "saved", "message": "Einstellungen gespeichert."}
+
+
+def _build_hostapd_conf(ssid: str, password: str) -> str:
+    """Generiert hostapd.conf aus Template (liest data/wifi_config.json für country/channel)"""
+    import json as _json
+    country_code = "DE"
+    channel = "1"
     try:
-        import platform
-        if platform.machine() in ['armv7l', 'aarch64']:  # Raspberry Pi
-            hostapd_conf_path = '/etc/hostapd/hostapd.conf'
-            
-            # Prüfe ob Config existiert
-            if not Path(hostapd_conf_path).exists():
-                logger.warning(f"{hostapd_conf_path} existiert nicht. Bitte zuerst install_ap.sh ausführen.")
-                return {"status": "error", "message": "hostapd.conf nicht gefunden. Bitte zuerst install_ap.sh ausführen."}
-            
-            try:
-                # Lese bestehende Config
-                with open(hostapd_conf_path, 'r') as f:
-                    lines = f.readlines()
-                
-                # Aktualisiere nur ssid und wpa_passphrase Zeilen
-                updated_lines = []
-                for line in lines:
-                    stripped = line.strip()
-                    if stripped.startswith('ssid='):
-                        updated_lines.append(f'ssid={settings.ssid}\n')
-                        logger.debug(f"SSID aktualisiert: {settings.ssid}")
-                    elif stripped.startswith('wpa_passphrase='):
-                        updated_lines.append(f'wpa_passphrase={settings.password}\n')
-                        logger.debug("Passwort aktualisiert")
-                    else:
-                        updated_lines.append(line)
-                
-                # Backup erstellen
-                subprocess.run(['sudo', 'cp', hostapd_conf_path, f'{hostapd_conf_path}.backup'], check=False)
-                
-                # Neue Config schreiben
-                with open('/tmp/hostapd.conf.new', 'w') as f:
-                    f.writelines(updated_lines)
-                
-                subprocess.run(['sudo', 'mv', '/tmp/hostapd.conf.new', hostapd_conf_path], check=True)
-                subprocess.run(['sudo', 'chmod', '600', hostapd_conf_path], check=True)
-                
-                logger.info("hostapd.conf wurde aktualisiert (bestehende Config beibehalten)")
-                
-                # Stoppe hostapd sauber
-                subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=False)
-                await asyncio.sleep(1)
-                
-                # Starte hostapd neu (mit start statt restart für sauberen Neustart)
-                result = subprocess.run(['sudo', 'systemctl', 'start', 'hostapd'], 
-                                      capture_output=True, text=True, check=False)
-                
-                if result.returncode == 0:
-                    logger.info("hostapd erfolgreich gestartet")
-                else:
-                    logger.error(f"hostapd start fehlgeschlagen: {result.stderr}")
-                
-                # Warte kurz und prüfe Status
-                await asyncio.sleep(2)
-                status_result = subprocess.run(['sudo', 'systemctl', 'is-active', 'hostapd'],
-                                             capture_output=True, text=True, check=False)
-                
-                if status_result.stdout.strip() == 'active':
-                    logger.info("hostapd läuft")
-                else:
-                    logger.warning(f"hostapd läuft nicht! Status: {status_result.stdout.strip()}")
-                
-                # Lade Einstellungen neu aus hostapd.conf
-                wifi_ap_manager.reload_from_hostapd()
-                
-                return {"status": "success", "message": f"WiFi AP auf '{settings.ssid}' aktualisiert. Bitte neu verbinden!"}
-            except PermissionError:
-                logger.warning("Keine Berechtigung zum Aktualisieren von hostapd.conf")
-                return {"status": "error", "message": "Keine Berechtigung. Server muss als root laufen oder sudo erlauben."}
-            except Exception as e:
-                logger.warning(f"Fehler beim Aktualisieren von hostapd: {e}")
-                return {"status": "error", "message": f"Fehler: {str(e)}"}
+        cfg_path = project_dir / "data" / "wifi_config.json"
+        if cfg_path.exists():
+            cfg = _json.loads(cfg_path.read_text())
+            country_code = cfg.get("country_code", country_code)
+            channel = str(cfg.get("channel", channel))
+    except Exception:
+        pass
+    return (
+        f"interface=wlan0\n"
+        f"ssid={ssid}\n"
+        f"channel={channel}\n"
+        f"hw_mode=g\n"
+        f"ieee80211n=1\n"
+        f"ieee80211d=1\n"
+        f"country_code={country_code}\n"
+        f"wmm_enabled=1\n"
+        f"auth_algs=1\n"
+        f"wpa=2\n"
+        f"wpa_key_mgmt=WPA-PSK\n"
+        f"rsn_pairwise=CCMP\n"
+        f"wpa_passphrase={password}\n"
+    )
+
+
+@app.post("/api/wifi-ap/apply")
+async def apply_wifi_ap():
+    """Wendet gespeicherte WiFi-Einstellungen auf hostapd.conf an (sudo mv + systemctl)"""
+    import platform
+    settings = wifi_ap_manager.settings
+    if not settings.ssid:
+        return {"status": "error", "message": "Keine Einstellungen gespeichert."}
+
+    if platform.machine() not in ['armv7l', 'aarch64']:
+        return {"status": "error", "message": "Nur auf Raspberry Pi verfügbar."}
+
+    hostapd_conf = '/etc/hostapd/hostapd.conf'
+    tmp_conf = '/tmp/hostapd.conf.new'
+
+    try:
+        # Neuen Config-Inhalt aus Template generieren
+        content = _build_hostapd_conf(settings.ssid, settings.password)
+        with open(tmp_conf, 'w') as f:
+            f.write(content)
+
+        # Backup (falls erlaubt)
+        subprocess.run(['sudo', 'cp', hostapd_conf, f'{hostapd_conf}.backup'], check=False)
+
+        # Per sudo mv einsetzen (sudoers: NOPASSWD /bin/mv /tmp/hostapd.conf.new ...)
+        r = subprocess.run(['sudo', 'mv', tmp_conf, hostapd_conf],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            logger.error(f"sudo mv fehlgeschlagen: {r.stderr}")
+            return {"status": "no_sudo",
+                    "message": "sudo mv fehlgeschlagen – sudoers-Eintrag fehlt.",
+                    "ssid": settings.ssid, "password": settings.password}
+
+        subprocess.run(['sudo', 'chmod', '600', hostapd_conf], check=False)
+
+        # hostapd neu starten
+        subprocess.run(['sudo', 'systemctl', 'stop', 'hostapd'], check=False)
+        await asyncio.sleep(1)
+        result = subprocess.run(['sudo', 'systemctl', 'start', 'hostapd'],
+                                capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logger.error(f"hostapd start fehlgeschlagen: {result.stderr}")
+            return {"status": "error", "message": f"hostapd start fehlgeschlagen: {result.stderr}"}
+
+        await asyncio.sleep(2)
+        wifi_ap_manager.reload_from_hostapd()
+        logger.info(f"hostapd erfolgreich auf SSID={settings.ssid} aktualisiert")
+        return {"status": "success",
+                "message": f"WLAN aktualisiert auf '{settings.ssid}'. Bitte neu verbinden!"}
+
     except Exception as e:
-        logger.debug(f"Nicht auf Raspberry Pi oder Fehler: {e}")
-    
-    return {"status": "success", "message": "WiFi AP Einstellungen gespeichert."}
+        logger.error(f"apply_wifi_ap Fehler: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/wifi-ap/restart")
 async def restart_wifi_ap():
