@@ -174,6 +174,9 @@
   "common": {
     "loading": "Cargando...",
     "connected": "Conectado",
-    "version": "openPadel v1.0"
+    "version": "openPadel v1.0",
+    "shutdown_confirm": "¿Realmente apagar?",
+    "shutdown_yes": "Sí, apagar",
+    "cancel": "Cancelar"
   }
 }
