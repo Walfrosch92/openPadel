@@ -1133,8 +1133,7 @@ gesture_recognizer.on_gesture_callback = handle_gesture
 def get_template_context(request: Request, **kwargs) -> dict:
     """Erstellt Template-Context mit Übersetzungen"""
     context = {
-        "request": request,
-        "t": language_manager.translations,  # Übersetzungen
+        "t": language_manager.translations,
         "current_lang": language_manager.current_language,
         **kwargs
     }
@@ -1587,7 +1586,7 @@ def get_state_dict(state: MatchState) -> Dict:
 async def scoreboard(request: Request):
     """Haupt-Scoreboard-Ansicht"""
     state = get_state_dict(current_match)
-    return templates.TemplateResponse("index.html", get_template_context(
+    return templates.TemplateResponse(request, "index.html", get_template_context(
         request,
         title="Tennis Scoreboard",
         state=state,
@@ -2112,7 +2111,7 @@ async def get_game_stats():
 @app.get("/webcam", response_class=HTMLResponse)
 async def webcam_page(request: Request):
     """Webcam-Steuerungs-Seite"""
-    return templates.TemplateResponse("webcam.html", get_template_context(
+    return templates.TemplateResponse(request, "webcam.html", get_template_context(
         request,
         title="Webcam Steuerung"
     ))
@@ -2211,7 +2210,7 @@ async def save_webcam_roi(data: dict):
 @app.get("/stats", response_class=HTMLResponse)
 async def stats_page(request: Request):
     """Statistik-Seite"""
-    return templates.TemplateResponse("stats.html", get_template_context(
+    return templates.TemplateResponse(request, "stats.html", get_template_context(
         request,
         title="Statistiken"
     ))
@@ -2388,7 +2387,7 @@ async def clear_history():
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     """Einstellungs-Seite"""
-    return templates.TemplateResponse("settings.html", get_template_context(
+    return templates.TemplateResponse(request, "settings.html", get_template_context(
         request,
         title="Einstellungen"
     ))
@@ -2396,7 +2395,7 @@ async def settings_page(request: Request):
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request):
     """Admin-Panel"""
-    return templates.TemplateResponse("admin.html", get_template_context(
+    return templates.TemplateResponse(request, "admin.html", get_template_context(
         request,
         title="Admin Panel"
     ))
