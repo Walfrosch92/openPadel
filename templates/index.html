@@ -91,16 +91,22 @@
             position: relative;
         }
         .scoreboard-cam {
-            position: absolute;
-            bottom: 12px;
-            right: 14px;
-            width: 150px;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
             height: auto;
             border-radius: 8px;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
-            border: 2px solid rgba(102, 126, 234, 0.6);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(102, 126, 234, 0.7);
             display: none;
-            z-index: 10;
+            z-index: 999;
+            cursor: grab;
+            user-select: none;
+            touch-action: none;
+        }
+        .scoreboard-cam:active {
+            cursor: grabbing;
         }
         .team-row {
             display: flex;
@@ -639,6 +645,83 @@
         }
         updateCamPreview();
         setInterval(updateCamPreview, 5000);
+
+        // Draggable camera preview
+        (function() {
+            const cam = document.getElementById('scoreboard-cam');
+            const STORAGE_KEY = 'camPreviewPos';
+
+            // Restore saved position
+            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+            if (saved) {
+                cam.style.right  = 'auto';
+                cam.style.bottom = 'auto';
+                cam.style.left   = saved.x + 'px';
+                cam.style.top    = saved.y + 'px';
+            }
+
+            function savePos() {
+                const r = cam.getBoundingClientRect();
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: r.left, y: r.top }));
+            }
+
+            function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+            // Mouse drag
+            let dragOffX = 0, dragOffY = 0;
+            cam.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                const r = cam.getBoundingClientRect();
+                cam.style.right  = 'auto';
+                cam.style.bottom = 'auto';
+                cam.style.left   = r.left + 'px';
+                cam.style.top    = r.top  + 'px';
+                dragOffX = e.clientX - r.left;
+                dragOffY = e.clientY - r.top;
+
+                function onMove(e) {
+                    const x = clamp(e.clientX - dragOffX, 0, window.innerWidth  - cam.offsetWidth);
+                    const y = clamp(e.clientY - dragOffY, 0, window.innerHeight - cam.offsetHeight);
+                    cam.style.left = x + 'px';
+                    cam.style.top  = y + 'px';
+                }
+                function onUp() {
+                    savePos();
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup',   onUp);
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup',   onUp);
+            });
+
+            // Touch drag
+            cam.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const r = cam.getBoundingClientRect();
+                cam.style.right  = 'auto';
+                cam.style.bottom = 'auto';
+                cam.style.left   = r.left + 'px';
+                cam.style.top    = r.top  + 'px';
+                dragOffX = touch.clientX - r.left;
+                dragOffY = touch.clientY - r.top;
+
+                function onMove(e) {
+                    const t = e.touches[0];
+                    const x = clamp(t.clientX - dragOffX, 0, window.innerWidth  - cam.offsetWidth);
+                    const y = clamp(t.clientY - dragOffY, 0, window.innerHeight - cam.offsetHeight);
+                    cam.style.left = x + 'px';
+                    cam.style.top  = y + 'px';
+                }
+                function onEnd() {
+                    savePos();
+                    cam.removeEventListener('touchmove', onMove);
+                    cam.removeEventListener('touchend',  onEnd);
+                }
+                cam.addEventListener('touchmove', onMove, { passive: false });
+                cam.addEventListener('touchend',  onEnd);
+            }, { passive: false });
+        })();
         
         function showMatchEndModal(winnerName) {
             const modal = document.getElementById('match-end-modal');
