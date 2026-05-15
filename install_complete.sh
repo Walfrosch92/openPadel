@@ -372,18 +372,24 @@ fi
 
 OS_CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
 
-# mediapipe hat noch keine Python-3.13-Wheels → auf Trixie python3.12 erzwingen
+# mediapipe requires Python < 3.13 – abort early on Trixie or newer
 PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
 if [ "$PYTHON_MINOR" -ge 13 ]; then
-    apt-get install -y python3.12 python3.12-venv -qq 2>/dev/null || true
-    if command -v python3.12 &>/dev/null; then
-        PYTHON_BIN="python3.12"
-    else
-        PYTHON_BIN="python3"
-    fi
-else
-    PYTHON_BIN="python3"
+    echo ""
+    echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║  FEHLER: Python 3.13+ wird nicht unterstützt              ║${NC}"
+    echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Dieses System läuft mit Python 3.${PYTHON_MINOR} (${OS_CODENAME})."
+    echo -e "  openPadel benötigt ${YELLOW}Raspberry Pi OS Bookworm${NC} (Python 3.11)."
+    echo -e "  mediapipe (Gestensteuerung) unterstützt Python 3.13 noch nicht."
+    echo ""
+    echo -e "  ${YELLOW}Bitte Raspberry Pi OS Bookworm flashen und erneut versuchen.${NC}"
+    echo -e "  Download: ${GREEN}https://www.raspberrypi.com/software/${NC}"
+    echo ""
+    exit 1
 fi
+PYTHON_BIN="python3"
 
 echo -e "${BLUE}${MSG_WORKDIR}:${NC} $SCRIPT_DIR"
 echo -e "${BLUE}${MSG_USER_LABEL}:${NC} $ACTUAL_USER"
