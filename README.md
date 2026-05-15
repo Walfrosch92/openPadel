@@ -47,7 +47,7 @@ Open Padel turns a Raspberry Pi with an attached camera into an interactive scor
 | **Display** | 2.9″ E-Paper Module (296×128, two-color, SPI) | [Amazon](https://amzn.eu/d/0baDggak) |
 
 > 💡 **Component Notes:**
-> - The **200° fisheye camera** captures the entire playing field – ideal for gesture recognition.
+> - The **200° fisheye camera** captures you on the playing field – ideal for gesture recognition.
 > - The **UPS HAT** enables location-independent use, allowing the Open Padel device to be mounted directly on the outside of the window.
 > - The **E-Paper display** is extremely power-efficient and shows the score even without backlight (power is only consumed when refreshing).
 
@@ -146,20 +146,44 @@ SCLK (23) (24)          ← GPIO 8   → CS (CE0)
 
 Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to flash **Raspberry Pi OS Lite (Bookworm, 64-bit)** onto an SD card. Boot the Pi and connect it via **LAN cable**.
 
-**Step 2 – Clone the repository**
+**Step 2 – SSH Connection**
+
+Open a terminal on your main PC and connect via SSH to your Raspberry Pi.
+
+```bash
+ssh user@raspberry-pi-ip
+```
+
+**Step 3 – Install Git**
+
+```bash
+sudo apt-get install git
+```
+
+**Step 4 – Clone the repository**
 
 ```bash
 git clone https://github.com/Walfrosch92/openPadel.git
 cd openPadel
 ```
 
-**Step 3 – Run the installer**
+**Step 5 – Run the Presetup script**
 
 ```bash
+sudo ./presetup.sh
+```
+
+A reboot is required because the SPI interface is activated for the first time. Reconnect afterwards via SSH again.
+
+**Step 6 – Run the installer**
+
+```bash
+cd openPadel
 sudo ./install_complete.sh
 ```
 
-> 💡 **Server-only mode** (no E-Paper display, custom hardware):
+> 💡 **Server-only mode** (custom display, custom camera):
+>
 > ```bash
 > sudo ./install_serveronly.sh
 > ```
@@ -168,7 +192,7 @@ sudo ./install_complete.sh
 
 | Step | Action |
 |:----:|--------|
-| 1 | Enable SPI interface & camera overlay in `/boot/firmware/config.txt` |
+| 1 | Enable SPI interface & camera overlay in `/boot/firmware/config.txt` (handled by `presetup.sh`) |
 | 2 | Install system packages (spidev, lgpio, rpicam-apps, fonts, …) |
 | 3 | Compile Waveshare E-Paper library |
 | 4 | Create Python venv & install all pip dependencies |
@@ -177,13 +201,13 @@ sudo ./install_complete.sh
 | 7 | Ask for country code and subnet, then configure hostapd & dnsmasq |
 
 > 💡 **Note:** At the end of setup you will be asked: **"Reboot now? (1/2)"**  
-> A reboot is required because the SPI interface is activated for the first time. After the reboot, all services start automatically.
+> After the reboot, all services start automatically.
 
 ---
 
 ## 🔄 Update
 
-> 🌐 **LAN required:** Connect the Raspberry Pi via **Ethernet cable** before updating. The WiFi interface is used as an access point and has no internet access.
+> 🌐 **LAN required:** Connect the Raspberry Pi via **Ethernet cable** and SSH into it before updating. The WiFi interface is used as an access point and has no internet access.
 
 ### Step 1 – Restore DNS resolution
 
@@ -209,7 +233,7 @@ The installer is idempotent – it skips steps that are already done and only ap
 sudo ./install_complete.sh
 ```
 
-> After the update, a reboot is usually not required unless the installer explicitly says so.
+> After the update, a reboot is usually required.
 
 ### Quick update (dependencies only)
 
@@ -239,7 +263,7 @@ After reboot **everything runs automatically**:
 
 2. **Open your browser** and navigate to:
    ```
-   http://openpadel.local
+   http://openpadel.local:8080
    ```
    or directly via IP address (shown on the display):
    ```
@@ -265,11 +289,13 @@ After reboot **everything runs automatically**:
 ```
 openPadel/
 ├── main.py                 # Main application (FastAPI)
+├── display_worker.py      # E-Paper display worker
 ├── webcam.py              # Camera control (rpicam-vid)
 ├── shutdown_helper.py     # System shutdown
 ├── install_complete.sh    # Full installation (display + server + WiFi AP)
 ├── install_serveronly.sh  # Server-only installation (custom hardware)
 ├── requirements.txt       # Python dependencies
+├── game_modes/            # Game mode definitions (JSON)
 ├── data/                  # Configurations & state
 │   ├── match_state.json
 │   ├── webcam_settings.json
@@ -291,17 +317,21 @@ openPadel/
 
 ## 🎮 Usage
 
-### Starting a Match
+### Starting a Match & Usage
 
-1. Go to the **Scoreboard** page
-2. Click on a team name to edit player names
-3. Use **+Point** to award points or use gesture control
-4. Use **Undo** to correct mistakes
-5. The match progresses automatically: points → games → sets
+1. Go to the **New Game** page
+2. Select match format
+3. Select the game mode
+4. Click on a team name to edit player names & save
+5. Select the serve
+6. Click on Scoreboard
+7. Use **+Point** to award points or use gesture control
+8. Use **Undo** to correct mistakes
+9. The match progresses automatically: points → games → sets
 
 ### Gesture Recognition
 
-Open the **Camera** page and make sure the camera is active. Show the corresponding hand gesture in front of the camera:
+Open the **Gestures** page and make sure the camera is active and gesture recognition is turned on. Show the corresponding hand gesture in front of the camera:
 
 | Gesture | Action |
 |---------|--------|
@@ -320,7 +350,7 @@ Open the **Camera** page and make sure the camera is active. Show the correspond
 
 ### Changing Language
 
-1. Open **Admin** page
+1. Open **Settings** page
 2. Under **System Control**, select the desired language
 3. Click **"Save Language"**
 4. The page will automatically reload
@@ -354,8 +384,8 @@ All settings can be made either through the user interface or directly in the JS
 ```json
 {
   "enabled": false,
-  "ssid": "PadelScoreboard",
-  "password": "yourpassword"
+  "ssid": "openPadel_<serial_number>",
+  "password": "openPadel"
 }
 ```
 
@@ -390,7 +420,7 @@ All settings can be made either through the user interface or directly in the JS
 | GET | `/api/language` | Current language |
 | POST | `/api/language` | Set language |
 | GET | `/api/translations` | Get all translations |
-| POST | `/api/poweroff` | Shutdown system |
+| POST | `/api/system/shutdown` | Shutdown system |
 
 ### Statistics
 
