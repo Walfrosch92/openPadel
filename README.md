@@ -2,9 +2,6 @@
   <img src="banner.PNG" alt="openPadel – Play. Score. Win." width="100%">
 </p>
 
-<p align="center">
-  <img src="poweroff.jpg" alt="openPadel Logo" width="140">
-</p>
 
 # 🎾 Open Padel - Tennis & Padel Scoring System
 
