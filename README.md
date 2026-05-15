@@ -2,7 +2,6 @@
   <img src="banner.PNG" alt="openPadel – Play. Score. Win." width="100%">
 </p>
 
-
 # 🎾 Open Padel - Tennis & Padel Scoring System
 
 A comprehensive, web-based scoring system for tennis, padel and similar sports with gesture recognition, live camera streaming and multi-language support. Optimized for Raspberry Pi with E-Paper display and UPS support.
@@ -10,7 +9,7 @@ A comprehensive, web-based scoring system for tennis, padel and similar sports w
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red.svg)
-[![iOS App Store](https://img.shields.io/badge/iOS-App%20Store-000000.svg?logo=apple)]([https://apps.apple.com/app/APPSTORE_LINK_HERE](https://apps.apple.com/at/app/openpadel/id6756242520))
+[![iOS App Store](https://img.shields.io/badge/iOS-App%20Store-000000.svg?logo=apple)](https://apps.apple.com/at/app/openpadel/id6756242520)
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-orange?logo=buy-me-a-coffee)](https://buymeacoffee.com/walfrosch92)
 
@@ -269,7 +268,7 @@ After reboot **everything runs automatically**:
 
 ### iOS App "openPadel"
 
-[![Download on the App Store](https://img.shields.io/badge/Download_on_the-App%20Store-000000?style=for-the-badge&logo=apple)]([https://apps.apple.com/app/APPSTORE_LINK_HERE](https://apps.apple.com/at/app/openpadel/id6756242520))
+[![Download on the App Store](https://img.shields.io/badge/Download_on_the-App%20Store-000000?style=for-the-badge&logo=apple)](https://apps.apple.com/at/app/openpadel/id6756242520)
 
 | Access | Method |
 |--------|---------|
