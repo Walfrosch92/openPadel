@@ -375,8 +375,12 @@ OS_CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
 # mediapipe hat noch keine Python-3.13-Wheels → auf Trixie python3.12 erzwingen
 PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
 if [ "$PYTHON_MINOR" -ge 13 ]; then
-    apt-get install -y python3.12 python3.12-venv -qq 2>/dev/null
-    PYTHON_BIN="python3.12"
+    apt-get install -y python3.12 python3.12-venv -qq 2>/dev/null || true
+    if command -v python3.12 &>/dev/null; then
+        PYTHON_BIN="python3.12"
+    else
+        PYTHON_BIN="python3"
+    fi
 else
     PYTHON_BIN="python3"
 fi
