@@ -6,6 +6,6 @@ jinja2
 python-multipart
 numpy>=1.26
 opencv-python-headless>=4.10
-mediapipe>=0.10.21
+mediapipe>=0.10.9
 requests
 qrcode
