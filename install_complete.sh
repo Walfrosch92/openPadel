@@ -370,6 +370,17 @@ else
     BOOT_CONFIG="/boot/config.txt"
 fi
 
+OS_CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+
+# mediapipe hat noch keine Python-3.13-Wheels → auf Trixie python3.12 erzwingen
+PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
+if [ "$PYTHON_MINOR" -ge 13 ]; then
+    apt-get install -y python3.12 python3.12-venv -qq 2>/dev/null
+    PYTHON_BIN="python3.12"
+else
+    PYTHON_BIN="python3"
+fi
+
 echo -e "${BLUE}${MSG_WORKDIR}:${NC} $SCRIPT_DIR"
 echo -e "${BLUE}${MSG_USER_LABEL}:${NC} $ACTUAL_USER"
 echo -e "${BLUE}${MSG_BOOT_CFG}:${NC} $BOOT_CONFIG"
@@ -433,13 +444,16 @@ usermod -a -G spi,gpio $ACTUAL_USER 2>/dev/null || true
 
 echo -e "${YELLOW}[4/6]${NC} ${MSG_PACKAGES}"
 apt-get update -qq
+GLIB_PKG="libglib2.0-0"
+[ "$OS_CODENAME" = "trixie" ] && GLIB_PKG="libglib2.0-0t64"
+
 apt-get install -y \
     python3-pip python3-venv python3-spidev python3-lgpio python3-pil git \
     rpicam-apps \
     qrencode \
     iw \
     fonts-dejavu-core \
-    libgl1 libglib2.0-0 \
+    libgl1 "$GLIB_PKG" \
     -qq 2>/dev/null || true
 
 # Camera access
@@ -875,14 +889,14 @@ echo ""
 
 echo -e "${YELLOW}[1/6]${NC} ${MSG_VENV_CREATE}"
 if [ ! -d "$SCRIPT_DIR/.venv" ]; then
-    su - $ACTUAL_USER -c "cd $SCRIPT_DIR && python3 -m venv .venv"
+    su - $ACTUAL_USER -c "cd $SCRIPT_DIR && $PYTHON_BIN -m venv .venv"
     echo -e "${GREEN}${MSG_VENV_DONE}${NC}"
 else
     echo -e "${GREEN}${MSG_VENV_EXISTS}${NC}"
 fi
 
 echo -e "${YELLOW}[2/6]${NC} ${MSG_PIP}"
-su - $ACTUAL_USER -c "cd $SCRIPT_DIR && source .venv/bin/activate && pip install --quiet --upgrade pip && pip install --quiet -r requirements.txt"
+su - $ACTUAL_USER -c "cd $SCRIPT_DIR && source .venv/bin/activate && pip install --quiet -r requirements.txt"
 echo -e "${GREEN}${MSG_PIP_DONE}${NC}"
 
 echo -e "${YELLOW}[3/6]${NC} ${MSG_DATA}"
@@ -1039,6 +1053,10 @@ apt-get install -y dnsmasq hostapd iptables dhcpcd5 -qq 2>/dev/null
 echo -e "${YELLOW}[2/8]${NC} ${MSG_WIFI_NM}"
 systemctl stop NetworkManager 2>/dev/null || true
 systemctl disable NetworkManager 2>/dev/null || true
+# Trixie: NM's wpa_supplicant-Instanz muss explizit gestoppt werden
+systemctl stop wpa_supplicant 2>/dev/null || true
+systemctl disable wpa_supplicant 2>/dev/null || true
+systemctl mask wpa_supplicant 2>/dev/null || true
 systemctl enable dhcpcd
 systemctl start dhcpcd
 

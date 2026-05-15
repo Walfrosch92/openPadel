@@ -4,8 +4,8 @@ pillow
 gpiozero
 jinja2
 python-multipart
-numpy==1.26.*
-opencv-python-headless==4.10.*
-mediapipe==0.10.14
+numpy>=1.26
+opencv-python-headless>=4.10
+mediapipe>=0.10.21
 requests
 qrcode
