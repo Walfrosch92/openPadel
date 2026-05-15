@@ -48,7 +48,7 @@ Open Padel turns a Raspberry Pi with an attached camera into an interactive scor
 
 > 💡 **Component Notes:**
 > - The **200° fisheye camera** captures you on the playing field – ideal for gesture recognition.
-> - The **UPS HAT** enables location-independent use, allowing the Open Padel device to be mounted directly on the outside of the window.
+> - The **UPS HAT** enables location-independent use, allowing the openPadel device to be mounted directly on the outside of the glass.
 > - The **E-Paper display** is extremely power-efficient and shows the score even without backlight (power is only consumed when refreshing).
 
 ## 🔌 Display Wiring
