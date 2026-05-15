@@ -69,22 +69,6 @@ Connect the **Waveshare 2.9″ E-Paper module** to the Raspberry Pi GPIO header 
 > ⚠️ **Important:** The display runs on **3.3 V** only – never connect it to the 5 V rail!  
 > The SPI interface must be enabled before first use. The installation script handles this automatically and prompts you to reboot.
 
-```
-Raspberry Pi GPIO header (top view, pin 1 = top left)
- 3V3  (1) (2)  5V
- SDA  (3) (4)  5V
- SCL  (5) (6)  GND  ← GND
-      (7) (8)  TXD
- GND  (9) (10) RXD
- RST (11) (12)          ← GPIO 17  → RST
-     (13) (14) GND
-     (15) (16)
- 3V3 (17) (18)          ← GPIO 24  → BUSY
-MOSI (19) (20) GND
-     (21) (22)          ← GPIO 25  → DC
-SCLK (23) (24)          ← GPIO 8   → CS (CE0)
- GND (25) (26)
-```
 
 ## ✨ Features
 
