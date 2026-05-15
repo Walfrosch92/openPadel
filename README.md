@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="poweroff.jpg" alt="openPadel Logo" width="140">
+</p>
+
 # 🎾 Open Padel - Tennis & Padel Scoring System
 
 A comprehensive, web-based scoring system for tennis, padel and similar sports with gesture recognition, live camera streaming and multi-language support. Optimized for Raspberry Pi with E-Paper display and UPS support.
@@ -5,7 +9,7 @@ A comprehensive, web-based scoring system for tennis, padel and similar sports w
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red.svg)
-![iOS](https://img.shields.io/badge/iOS-App-000000.svg)
+![iOS](https://img.shields.io/badge/iOS-Coming%20Soon-000000.svg?logo=apple)
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-orange?logo=buy-me-a-coffee)](https://buymeacoffee.com/walfrosch92)
 
@@ -263,6 +267,8 @@ After reboot **everything runs automatically**:
 | On-site at Pi | `http://localhost:8080` (with connected monitor) |
 
 ### iOS App "openPadel"
+
+> 🍎 **Coming soon to the App Store!**
 
 | Access | Method |
 |--------|---------|
