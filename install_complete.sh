@@ -133,6 +133,7 @@ case "$LANGUAGE" in
     MSG_REBOOT_MANUAL="Please reboot manually: sudo reboot"
     MSG_ACCESS_QUESTION_PREFIX="Can you access http://"
     MSG_ACCESS_QUESTION_SUFFIX=":8080 ?"
+    MSG_ACCESS_WAIT="Please wait 30 seconds for the server to fully start..."
     MSG_PYTHON_ERROR="ERROR: Python 3.13+ is not supported"
     MSG_PYTHON_RUNNING="This system is running Python"
     MSG_PYTHON_NEEDS="openPadel requires Raspberry Pi OS Bookworm (Python 3.11)."
@@ -245,6 +246,7 @@ case "$LANGUAGE" in
     MSG_REBOOT_MANUAL="Por favor reinicia manualmente: sudo reboot"
     MSG_ACCESS_QUESTION_PREFIX="¿Puedes acceder a http://"
     MSG_ACCESS_QUESTION_SUFFIX=":8080 ?"
+    MSG_ACCESS_WAIT="Por favor espera 30 segundos para que el servidor termine de iniciar..."
     MSG_PYTHON_ERROR="ERROR: Python 3.13+ no está soportado"
     MSG_PYTHON_RUNNING="Este sistema usa Python"
     MSG_PYTHON_NEEDS="openPadel requiere Raspberry Pi OS Bookworm (Python 3.11)."
@@ -357,6 +359,7 @@ case "$LANGUAGE" in
     MSG_REBOOT_MANUAL="Bitte manuell neu starten mit: sudo reboot"
     MSG_ACCESS_QUESTION_PREFIX="Kannst du auf http://"
     MSG_ACCESS_QUESTION_SUFFIX=":8080 zugreifen?"
+    MSG_ACCESS_WAIT="Bitte 30 Sekunden warten, bis der Server vollständig gestartet ist..."
     MSG_PYTHON_ERROR="FEHLER: Python 3.13+ wird nicht unterstützt"
     MSG_PYTHON_RUNNING="Dieses System läuft mit Python"
     MSG_PYTHON_NEEDS="openPadel benötigt Raspberry Pi OS Bookworm (Python 3.11)."
@@ -1036,6 +1039,8 @@ if systemctl is-active --quiet padel-server.service; then
     fi
 
     echo ""
+    echo -e "${YELLOW}${MSG_ACCESS_WAIT}${NC}"
+    sleep 30
     if ask_yes_no "${MSG_ACCESS_QUESTION_PREFIX}${IP_ADDRESS}${MSG_ACCESS_QUESTION_SUFFIX}"; then
         echo -e "${GREEN}${MSG_ACCESS_OK}${NC}"
         SERVER_OK=1
