@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy · openPadel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --blue:#0A84FF;
+      --blue-soft:#3A8BFF;
+      --purple:#BF5AF2;
+      --purple-soft:#C77DFF;
+      --gold:#FFD66B;
+      --gold-deep:#E9A23B;
+      --green:#39E07A;
+      --bg:#06070D;
+      --bg-2:#0B0D17;
+      --ink:#F4F6FF;
+      --ink-dim:#9AA3BD;
+      --ink-faint:#5B628A;
+      --glass:rgba(255,255,255,.055);
+      --glass-2:rgba(255,255,255,.085);
+      --stroke:rgba(255,255,255,.10);
+      --grad:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);
+      --r:22px;
+      --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+    body{
+      font-family:var(--font);
+      background:
+        radial-gradient(900px 700px at 12% -5%, rgba(10,132,255,.22), transparent 60%),
+        radial-gradient(900px 700px at 95% 6%, rgba(191,90,242,.20), transparent 60%),
+        radial-gradient(700px 600px at 50% 120%, rgba(255,214,107,.06), transparent 60%),
+        var(--bg);
+      color:var(--ink);
+      min-height:100vh;
+      line-height:1.65;
+      padding:56px 22px 90px;
+      overflow-x:hidden;
+    }
+
+    /* ── header ─────────────────────────────────────── */
+    .head{max-width:760px;margin:0 auto 40px;text-align:center;}
+    .logo{
+      display:block;width:88px;height:88px;border-radius:22px;margin:0 auto;
+      object-fit:cover;
+      box-shadow:0 18px 40px -12px rgba(10,132,255,.7), 0 0 0 1px rgba(255,255,255,.12);
+    }
+    .pill{
+      margin-top:24px;
+      display:inline-flex;align-items:center;gap:8px;
+      padding:7px 16px;border-radius:999px;
+      background:var(--glass);border:1px solid var(--stroke);
+      font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+      color:var(--ink-dim);backdrop-filter:blur(12px);
+    }
+    .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold);}
+    .head h1{
+      margin-top:20px;font-size:46px;font-weight:900;letter-spacing:-.03em;line-height:1;
+      background:linear-gradient(180deg,#fff,#aeb8d8);
+      -webkit-background-clip:text;background-clip:text;color:transparent;
+    }
+    .head h1 b{
+      background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;
+    }
+    .head .updated{margin-top:16px;color:var(--ink-dim);font-size:14px;font-weight:500;}
+
+    /* ── content ────────────────────────────────────── */
+    main{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+    .card{
+      border-radius:var(--r);background:var(--glass);border:1px solid var(--stroke);
+      backdrop-filter:blur(16px);padding:24px 24px 26px;
+    }
+    .card h2{
+      display:flex;align-items:center;gap:14px;
+      font-size:18px;font-weight:800;letter-spacing:-.01em;color:var(--ink);
+    }
+    .card h2 .n{
+      width:34px;height:34px;border-radius:11px;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      font-size:14px;font-weight:800;color:#fff;
+      background:var(--grad);box-shadow:0 8px 20px -8px rgba(10,132,255,.7);
+    }
+    .card p{margin-top:14px;color:var(--ink-dim);font-size:15px;}
+    .card p strong{color:var(--ink);font-weight:700;}
+    .card ul{margin-top:14px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:12px;}
+    .card li{
+      position:relative;padding:14px 16px 14px 18px;border-radius:14px;
+      background:var(--glass);border:1px solid var(--stroke);
+      color:var(--ink-dim);font-size:14.5px;
+    }
+    .card li::before{
+      content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:4px;
+      background:linear-gradient(var(--blue),var(--purple));
+    }
+    .card li strong{color:var(--ink);font-weight:700;}
+
+    /* highlight card — the "no data" statement */
+    .card.highlight{
+      background:linear-gradient(135deg,rgba(10,132,255,.16),rgba(191,90,242,.14));
+      border:1px solid rgba(255,255,255,.14);position:relative;overflow:hidden;
+    }
+    .card.highlight::before{
+      content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;
+      background:radial-gradient(circle,rgba(255,255,255,.12),transparent 70%);pointer-events:none;
+    }
+    .card.highlight p{color:var(--ink);font-size:16px;}
+
+    /* technical note card */
+    .note{
+      margin-top:16px;padding:16px 18px;border-radius:14px;
+      background:rgba(255,214,107,.06);border:1px solid rgba(255,214,107,.28);
+    }
+    .note .label{
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
+    }
+    .note .label .dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold);}
+    .note p{margin-top:10px;color:var(--ink-dim);font-size:14px;}
+
+    a{color:var(--blue-soft);text-decoration:none;font-weight:600;border-bottom:1px solid rgba(58,139,255,.35);transition:color .15s,border-color .15s;}
+    a:hover{color:var(--purple-soft);border-color:rgba(199,125,255,.5);}
+
+    .contact{
+      margin-top:8px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+    }
+    .contact .who{font-weight:700;color:var(--ink);}
+
+    /* ── footer ─────────────────────────────────────── */
+    .foot{
+      max-width:760px;margin:48px auto 0;text-align:center;
+      color:var(--ink-faint);font-size:12.5px;line-height:1.7;
+    }
+    .foot .brand b{
+      background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800;
+    }
+
+    @media (max-width:560px){
+      body{padding:40px 16px 70px;}
+      .head h1{font-size:38px;}
+      .card{padding:20px 18px 22px;}
+    }
+  </style>
+</head>
+<body>
+
+  <header class="head">
+    <img class="logo" src="https://raw.githubusercontent.com/Walfrosch92/openPadel/main/poweroff.jpg" alt="openPadel logo" width="88" height="88">
+    <span class="pill"><span class="dot"></span>Privacy Policy</span>
+    <h1>open<b>Padel</b></h1>
+    <p class="updated">Last updated: June 16, 2026</p>
+  </header>
+
+  <main>
+
+    <section class="card">
+      <h2><span class="n">1</span>Developer</h2>
+      <div class="contact">
+        <span class="who">Walfrosch92</span>
+        <span>·</span>
+        <a href="mailto:walfrosch92@gmail.com">walfrosch92@gmail.com</a>
+      </div>
+    </section>
+
+    <section class="card highlight">
+      <h2><span class="n">2</span>No Collection of Personal Data</h2>
+      <p>The app <strong>openPadel</strong> does not collect, store, transmit, or share any personal data with the developer.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">3</span>No User Accounts</h2>
+      <p>The app does not require registration, login, or user accounts.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">4</span>No Analytics, Tracking, or Advertising</h2>
+      <p>The app does not use analytics tools, tracking technologies, or advertising services. No data is collected for advertising or usage analysis purposes.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">5</span>No Data Sharing</h2>
+      <p>Since the app does not collect personal data, no personal data is shared with third parties.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">6</span>Device Permissions &amp; Technologies Used</h2>
+      <p>The app only requests permissions that are necessary for its functionality:</p>
+      <ul>
+        <li><strong>Camera (optional):</strong> Used exclusively for optional QR code scanning when using external hardware in the online game mode. The camera is only activated on explicit user action, and no image data is stored or transmitted.</li>
+      </ul>
+      <div class="note">
+        <span class="label"><span class="dot"></span>Note on technical components</span>
+        <p>For communication between smartphone and smartwatch (Wear OS), the Google Play Services Wearable SDK is used. For QR code detection on Android, the Google ML Kit Barcode Scanning SDK is used. These components are used solely for the mentioned functions and do not collect any personal data. On iOS, QR code detection uses only Apple's native frameworks (AVFoundation/Vision).</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">7</span>Open Source</h2>
+      <p>The source code of the app is publicly available at:</p>
+      <p><a href="https://github.com/Walfrosch92/openPadel">github.com/Walfrosch92/openPadel</a></p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">8</span>Children's Privacy</h2>
+      <p>The app is primarily aimed at adult tennis and padel enthusiasts. It is not specifically directed at children under the age of 13.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">9</span>Changes to This Privacy Policy</h2>
+      <p>This Privacy Policy may be updated if the app's functionality or legal requirements change. The latest version will be available on this page.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">10</span>Contact</h2>
+      <p>For questions about this Privacy Policy, please contact <a href="mailto:walfrosch92@gmail.com">walfrosch92@gmail.com</a>.</p>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <p class="brand">open<b>Padel</b> · Padel &amp; Tennis Scoreboard</p>
+    <p>© 2026 Walfrosch92 · All rights reserved</p>
+  </footer>
+
+</body>
+</html>
