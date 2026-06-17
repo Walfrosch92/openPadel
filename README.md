@@ -10,6 +10,7 @@ A comprehensive, web-based scoring system for tennis, padel and similar sports w
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red.svg)
 [![iOS App Store](https://img.shields.io/badge/iOS-App%20Store-000000.svg?logo=apple)](https://apps.apple.com/at/app/openpadel/id6756242520)
+[![Get it on Google Play](https://img.shields.io/badge/Get%20it%20on-Google%20Play-3DDC84.svg?logo=google-play)](https://play.google.com/store/apps/details?id=com.Walfrosch92.openPadel)
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-orange?logo=buy-me-a-coffee)](https://buymeacoffee.com/walfrosch92)
 
@@ -266,13 +267,14 @@ After reboot **everything runs automatically**:
 |--------|---------|
 | On-site at Pi | `http://localhost:8080` (with connected monitor) |
 
-### iOS App "openPadel"
+### iOS & Android App "openPadel"
 
 [![Download on the App Store](https://img.shields.io/badge/Download_on_the-App%20Store-000000?style=for-the-badge&logo=apple)](https://apps.apple.com/at/app/openpadel/id6756242520)
+[![Get it on Google Play](https://img.shields.io/badge/Get_it_on-Google%20Play-3DDC84?style=for-the-badge&logo=google-play)](https://play.google.com/store/apps/details?id=com.Walfrosch92.openPadel)
 
-| Access | Method |
-|--------|---------|
-| iOS App | Open the "Setup" tab in the app and scan the QR code displayed on the e-Ink display |
+| Platform | Setup Method |
+|----------|--------------|
+| iOS & Android | Open the "Setup" tab in the app and scan the QR code displayed on the e-Ink display |
 
 ## 📁 Project Structure
 
@@ -529,7 +531,7 @@ Contributions are very welcome!
 
 - [ ] Tournament mode with bracket generation
 - [x] iOS app
-- [ ] Android app
+- [x] Android app
 - [ ] WiFi scoreboard via ESP32
 - [ ] AI-powered point detection
 
