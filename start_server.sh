@@ -13,6 +13,10 @@ pkill -f "display_worker.py" || true
 # Warte kurz
 sleep 2
 
+# Auto-Update: startet ein frisch installiertes Update wiederholt nicht,
+# stellt der Updater hier den vorherigen Stand wieder her
+python3 updater.py --boot-check || true
+
 echo "🔄 Starte Padel-Server & Display-Worker…"
 
 # === Server (im venv) ========================================================

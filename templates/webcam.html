@@ -1,246 +1,21 @@
 <!DOCTYPE html>
 <html lang="{{ current_lang }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ t.camera.title }}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #fff;
-        }
-        .nav {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 10px;
-            text-align: center;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .nav-logo {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            height: 40px;
-            border-radius: 6px;
-            object-fit: cover;
-        }
-        .nav a {
-            color: #fff;
-            text-decoration: none;
-            margin: 0 10px;
-            padding: 8px 15px;
-            border-radius: 5px;
-            background: rgba(255, 255, 255, 0.2);
-            font-size: 14px;
-        }
-        .nav a:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2em;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        .content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        .video-section, .controls-section {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        }
-        .video-section h2, .controls-section h2 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 1.5em;
-        }
-        .video-container {
-            position: relative;
-            width: 100%;
-            background: #000;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-        #video-stream {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        #roi-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            cursor: crosshair;
-        }
-        .canvas-controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-        .btn {
-            padding: 12px 25px;
-            font-size: 1em;
-            font-weight: bold;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        }
-        .btn:active {
-            transform: scale(0.95);
-        }
-        .gesture-feedback {
-            background: #e3f2fd;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .gesture-feedback h3 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .gesture-display {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-            margin: 10px 0;
-        }
-        .settings-group {
-            margin-bottom: 25px;
-        }
-        .settings-group h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }
-        .setting-item {
-            margin-bottom: 20px;
-        }
-        .setting-item label {
-            display: block;
-            color: #555;
-            font-weight: bold;
-            margin-bottom: 8px;
-            font-size: 0.95em;
-        }
-        .setting-item input[type="range"] {
-            width: 100%;
-            height: 8px;
-            border-radius: 5px;
-            background: #ddd;
-            outline: none;
-            -webkit-appearance: none;
-        }
-        .setting-item input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #667eea;
-            cursor: pointer;
-        }
-        .setting-item input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #667eea;
-            cursor: pointer;
-            border: none;
-        }
-        .setting-value {
-            display: inline-block;
-            min-width: 60px;
-            text-align: right;
-            color: #667eea;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .status-message {
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 15px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .status-success {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        @media (max-width: 1024px) {
-            .content {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-    <script src="/static/js/i18n.js"></script>
+    <title>{{ t.camera.title }} · openPadel</title>
+{% include "_head.html" %}
 </head>
 <body>
-    <nav class="nav">
-        <img src="/poweroff.jpg" alt="openPadel" class="nav-logo">
-        <a href="/" data-i18n="nav.scoreboard">Scoreboard</a>
-        <a href="/webcam" data-i18n="nav.camera">Gestures</a>
-        <a href="/stats" data-i18n="nav.stats">Statistics</a>
-        <a href="/settings" data-i18n="nav.settings">New Game</a>
-        <a href="/admin" data-i18n="nav.admin">Settings</a>
-    </nav>
+{% include "_nav.html" %}
 
-    <div class="container">
-        <h1 data-i18n="camera.title">{{ t.camera.title }}</h1>
+    <main class="page wide">
+        <h1 class="page-title" data-i18n="camera.title">{{ t.camera.title }}</h1>
 
-        <div class="content">
-            <div class="video-section">
-                <h2 data-i18n="camera.title">Live Camera Stream</h2>
-                
+        <div class="grid cols-2">
+            <div class="card">
                 <div class="gesture-feedback">
                     <h3 data-i18n="camera.detected_gesture">Detected Gesture</h3>
-                    <div class="gesture-display" id="gesture-display" data-i18n="camera.none">None</div>
-                    <div style="color: #666; font-size: 0.9em;" id="gesture-timestamp"></div>
+                    <div class="gesture-display grad-text" id="gesture-display" data-i18n="camera.none">None</div>
+                    <div class="muted small" id="gesture-timestamp"></div>
                 </div>
 
                 <div class="video-container">
@@ -248,28 +23,25 @@
                     <canvas id="roi-canvas"></canvas>
                 </div>
 
-                <div class="canvas-controls">
-                    <button class="btn btn-primary" id="toggle-roi" data-i18n="camera.edit_roi">Edit ROI</button>
-                    <button class="btn btn-secondary" id="clear-roi" data-i18n="camera.clear_roi">Clear ROI</button>
-                    <button class="btn btn-success" id="save-roi" data-i18n="camera.save_roi">Save ROI</button>
+                <div class="btn-row">
+                    <button class="btn btn-sm btn-primary" id="toggle-roi" data-i18n="camera.edit_roi">Edit ROI</button>
+                    <button class="btn btn-sm btn-secondary" id="clear-roi" data-i18n="camera.clear_roi">Clear ROI</button>
+                    <button class="btn btn-sm btn-success" id="save-roi" data-i18n="camera.save_roi">Save ROI</button>
                 </div>
-                
-                <div id="roi-info" style="background: #fff3cd; padding: 10px; border-radius: 5px; color: #856404; display: none;" data-i18n="camera.roi_info">
+
+                <div id="roi-info" class="note gold" style="display: none;" data-i18n="camera.roi_info">
                     ROI Editor: Click to place polygon points. Double-click to close.
                 </div>
+                <div id="status-message" class="status-message"></div>
             </div>
 
-            <div class="controls-section">
-                <h2 data-i18n="camera.settings">Camera Settings</h2>
-                
-                <div class="settings-group">
-                    <h3 data-i18n="camera.resolution_performance">Resolution &amp; Performance</h3>
+            <div>
+                <div class="card">
+                    <h2><svg class="icon"><use href="#i-camera"/></svg><span data-i18n="camera.settings">Camera Settings</span></h2>
 
-                    <div class="setting-item">
-                        <label for="webcam-resolution" data-i18n="camera.resolution">
-                            Resolution
-                        </label>
-                        <select id="webcam-resolution" style="padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; width: 100%;">
+                    <div class="field">
+                        <label for="webcam-resolution" data-i18n="camera.resolution">Resolution</label>
+                        <select id="webcam-resolution">
                             <option value="640x480">640x480 (Standard)</option>
                             <option value="800x600">800x600</option>
                             <option value="1280x720">1280x720 (HD)</option>
@@ -277,70 +49,64 @@
                         </select>
                     </div>
 
-                    <div class="setting-item">
-                        <label for="webcam-fps" data-i18n="camera.fps">
-                            FPS (Bilder pro Sekunde)
-                        </label>
-                        <select id="webcam-fps" style="padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; width: 100%;">
+                    <div class="field">
+                        <label for="webcam-fps" data-i18n="camera.fps">FPS (Bilder pro Sekunde)</label>
+                        <select id="webcam-fps">
                             <option value="10">10 FPS</option>
                             <option value="15">15 FPS (Standard)</option>
                             <option value="20">20 FPS</option>
                             <option value="30">30 FPS</option>
                         </select>
                     </div>
-                    
-                    <div class="setting-item">
-                        <label for="gesture-recognition-enabled" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="gesture-recognition-enabled" checked style="width: 20px; height: 20px; cursor: pointer;">
-                            <span data-i18n="camera.gesture_recognition">Gesture Recognition Enabled</span>
-                        </label>
-                        <p style="font-size: 0.9em; color: #666; margin-top: 5px;" data-i18n="camera.gesture_help">
-                            Disable to save CPU (video stream only, no gestures)
-                        </p>
+
+                    <div class="row">
+                        <label class="label" for="gesture-recognition-enabled" data-i18n="camera.gesture_recognition">Gesture Recognition Enabled</label>
+                        <input type="checkbox" id="gesture-recognition-enabled" checked>
                     </div>
-                    
-                    <button class="btn btn-primary" onclick="saveWebcamSettings()" style="margin-top: 10px;" data-i18n="camera.save_settings">
+                    <p class="muted small" data-i18n="camera.gesture_help">
+                        Disable to save CPU (video stream only, no gestures)
+                    </p>
+
+                    <button class="btn btn-primary block" onclick="saveWebcamSettings()" style="margin-top: 16px;" data-i18n="camera.save_settings">
                         Save Settings &amp; Restart
                     </button>
-                    
-                    <div id="webcam-status-message" style="margin-top: 10px; padding: 10px; border-radius: 5px; display: none;"></div>
+
+                    <div id="webcam-status-message" class="status-message"></div>
                 </div>
 
-                <h2 style="margin-top: 30px;" data-i18n="camera.gesture_guide">Gesture Guide</h2>
+                <div class="card">
+                    <h2><svg class="icon"><use href="#i-insights"/></svg><span data-i18n="camera.gesture_guide">Gesture Guide</span></h2>
 
-                <div class="settings-group">
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
-                        <h4 style="margin-top: 0; color: #2c5282;" data-i18n="camera.team_a">Team A</h4>
-                        <p style="margin: 5px 0; color: #000;" data-i18n="camera.team_a_desc">✋ Raise right hand above head</p>
-                        <p style="margin: 5px 0; color: #000; font-size: 0.9em;" data-i18n="camera.team_a_result">→ Point for Team A</p>
+                    <div class="guide">
+                        <h4 class="c-a" data-i18n="camera.team_a">Team A</h4>
+                        <p data-i18n="camera.team_a_desc">✋ Raise right hand above head</p>
+                        <p class="small" data-i18n="camera.team_a_result">→ Point for Team A</p>
                     </div>
 
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
-                        <h4 style="margin-top: 0; color: #2c5282;" data-i18n="camera.team_b">Team B</h4>
-                        <p style="margin: 5px 0; color: #000;" data-i18n="camera.team_b_desc">✋ Raise left hand above head</p>
-                        <p style="margin: 5px 0; color: #000; font-size: 0.9em;" data-i18n="camera.team_b_result">→ Point for Team B</p>
+                    <div class="guide b">
+                        <h4 class="c-b" data-i18n="camera.team_b">Team B</h4>
+                        <p data-i18n="camera.team_b_desc">✋ Raise left hand above head</p>
+                        <p class="small" data-i18n="camera.team_b_result">→ Point for Team B</p>
                     </div>
 
-                    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
-                        <h4 style="margin-top: 0; color: #856404;" data-i18n="camera.undo_gesture">Undo – T-Pose</h4>
-                        <p style="margin: 5px 0; color: #000;" data-i18n="camera.undo_desc">🙌 Both arms extended sideways at shoulder height</p>
-                        <p style="margin: 5px 0; color: #000; font-size: 0.9em;" data-i18n="camera.undo_result">→ Last point will be undone</p>
+                    <div class="guide undo">
+                        <h4 data-i18n="camera.undo_gesture">Undo – T-Pose</h4>
+                        <p data-i18n="camera.undo_desc">🙌 Both arms extended sideways at shoulder height</p>
+                        <p class="small" data-i18n="camera.undo_result">→ Last point will be undone</p>
                     </div>
 
-                    <div style="background: #e3f2fd; padding: 15px; border-radius: 5px;">
-                        <h4 style="margin-top: 0; color: #1565c0;" data-i18n="camera.hints">💡 Hints</h4>
-                        <ul style="margin: 5px 0; padding-left: 20px; color: #000;">
+                    <div class="guide hint">
+                        <h4 data-i18n="camera.hints">Hints</h4>
+                        <ul>
                             <li data-i18n="camera.hint_cooldown">Cooldown: 10 seconds between point gestures</li>
                             <li data-i18n="camera.hint_hand">Keep hand clearly visible above head height</li>
                             <li data-i18n="camera.hint_tpose">For Undo: arms horizontal at shoulder height</li>
                         </ul>
                     </div>
                 </div>
-
-                <div id="status-message" style="display: none;"></div>
             </div>
         </div>
-    </div>
+    </main>
 
     <script>
         // ROI Editor
@@ -425,9 +191,9 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (roiPoints.length === 0) return;
 
-            ctx.strokeStyle = '#00ff00';
+            ctx.strokeStyle = '#39E07A';
             ctx.lineWidth = 3;
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+            ctx.fillStyle = 'rgba(57, 224, 122, 0.2)';
 
             ctx.beginPath();
             ctx.moveTo(roiPoints[0][0], roiPoints[0][1]);
@@ -441,7 +207,7 @@
             ctx.stroke();
 
             // Draw points
-            ctx.fillStyle = '#ff0000';
+            ctx.fillStyle = '#FFD66B';
             roiPoints.forEach(point => {
                 ctx.beginPath();
                 ctx.arc(point[0], point[1], 5, 0, 2 * Math.PI);
@@ -517,9 +283,16 @@
         function showWebcamStatus(message, type) {
             const statusMsg = document.getElementById('webcam-status-message');
             statusMsg.textContent = message;
-            statusMsg.style.backgroundColor = type === 'success' ? '#d4edda' : '#f8d7da';
-            statusMsg.style.color = type === 'success' ? '#155724' : '#721c24';
+            statusMsg.className = 'status-message status-' + type;
             statusMsg.style.display = 'block';
+        }
+
+        function showStatus(message, type) {
+            const statusMsg = document.getElementById('status-message');
+            statusMsg.textContent = message;
+            statusMsg.className = 'status-message status-' + type;
+            statusMsg.style.display = 'block';
+            setTimeout(() => { statusMsg.style.display = 'none'; }, 3000);
         }
 
         // Initialize

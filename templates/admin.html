@@ -1,439 +1,225 @@
 <!DOCTYPE html>
 <html lang="{{ current_lang }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #fff;
-        }
-        .nav {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 10px;
-            text-align: center;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .nav-logo {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            height: 40px;
-            border-radius: 6px;
-            object-fit: cover;
-        }
-        .nav a {
-            color: #fff;
-            text-decoration: none;
-            margin: 0 10px;
-            padding: 8px 15px;
-            border-radius: 5px;
-            background: rgba(255, 255, 255, 0.2);
-            font-size: 14px;
-        }
-        .nav a:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2em;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        .admin-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        .admin-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        }
-        .admin-card h2 {
-            color: #333;
-            font-size: 1.5em;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-        }
-        .admin-card h2::before {
-            content: '';
-            display: inline-block;
-            width: 5px;
-            height: 25px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            margin-right: 15px;
-            border-radius: 3px;
-        }
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px;
-            margin-bottom: 10px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .status-item .label {
-            color: #555;
-            font-weight: bold;
-        }
-        .status-item .value {
-            color: #333;
-            font-weight: bold;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-        .status-badge.online {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-badge.offline {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .btn {
-            width: 100%;
-            padding: 15px;
-            font-size: 1.1em;
-            font-weight: bold;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-            margin-bottom: 10px;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
-        }
-        .btn:active {
-            transform: scale(0.95);
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        .btn-warning {
-            background: #ffc107;
-            color: #333;
-        }
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-        .quick-links {
-            list-style: none;
-        }
-        .quick-links li {
-            margin-bottom: 12px;
-        }
-        .quick-links a {
-            display: block;
-            padding: 12px 15px;
-            background: #e3f2fd;
-            color: #667eea;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-        .quick-links a:hover {
-            background: #667eea;
-            color: white;
-            transform: translateX(5px);
-        }
-        .status-message {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            text-align: center;
-            font-weight: bold;
-            display: none;
-        }
-        .status-success {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .warning-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            border-radius: 5px;
-            margin-top: 15px;
-            color: #856404;
-        }
-        @media (max-width: 768px) {
-            .admin-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-    <script src="/static/js/i18n.js"></script>
+    <title>{{ t.nav.admin }} · openPadel</title>
+{% include "_head.html" %}
     <script src="/static/js/qrcode.min.js"></script>
 </head>
 <body>
-    <nav class="nav">
-        <img src="/poweroff.jpg" alt="openPadel" class="nav-logo">
-        <a href="/" data-i18n="nav.scoreboard">Scoreboard</a>
-        <a href="/webcam" data-i18n="nav.camera">Kamera</a>
-        <a href="/stats" data-i18n="nav.stats">Statistik</a>
-        <a href="/settings" data-i18n="nav.settings">Neues Spiel</a>
-        <a href="/admin" data-i18n="nav.admin">Einstellungen</a>
-    </nav>
+{% include "_nav.html" %}
 
-    <div class="container">
-        <h1 data-i18n="admin.title">Admin Panel</h1>
+    <main class="page">
+        <h1 class="page-title" data-i18n="nav.admin">{{ t.nav.admin }}</h1>
 
-        <div class="admin-grid">
-            <div class="admin-card">
-                <h2 data-i18n="admin.system_status">System-Status</h2>
+        <div class="two-col">
+            <div class="col">
+            <div class="card">
+                <h2><svg class="icon"><use href="#i-server"/></svg><span data-i18n="admin.system_status">System-Status</span></h2>
                 <div id="status-message" class="status-message"></div>
-                
-                <div class="status-item">
-                    <span class="label">Server:</span>
+
+                <div class="row">
+                    <span class="label">Server</span>
                     <span class="status-badge online" data-i18n="admin.online">Online</span>
                 </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.camera_status">Kamera:</span>
-                    <span class="status-badge" id="camera-status">Prüfen...</span>
+                <div class="row">
+                    <span class="label" data-i18n="admin.camera_status">Kamera</span>
+                    <span class="status-badge" id="camera-status">…</span>
                 </div>
-                <div class="status-item">
-                    <span class="label">WiFi AP:</span>
-                    <span class="status-badge" id="wifi-status">Prüfen...</span>
+                <div class="row">
+                    <span class="label">WiFi AP</span>
+                    <span class="status-badge" id="wifi-status">…</span>
                 </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.uptime">Uptime:</span>
+                <div class="row">
+                    <span class="label" data-i18n="admin.uptime">Uptime</span>
                     <span class="value" id="uptime">--</span>
                 </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.memory">Speicher:</span>
-                    <span class="value" id="memory">--</span>
+                <div class="row">
+                    <span class="label" data-i18n="admin.last_update">Letzte Aktualisierung</span>
+                    <span class="value" id="last-update">--</span>
                 </div>
             </div>
 
-            <div class="admin-card">
-                <h2 data-i18n="admin.wifi_status">WiFi-Status</h2>
-                
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.ssid">SSID:</span>
-                    <span class="value" id="wifi-ssid">openPadel</span>
-                </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.connected_devices">Verbundene Geräte:</span>
-                    <span class="value" id="wifi-clients">0</span>
-                </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.ip_address">IP-Adresse:</span>
-                    <span class="value" id="wifi-ip">10.20.1.1</span>
-                </div>
-                
-                <div class="warning-box">
-                    <strong>Hinweis:</strong> Das WiFi Access Point läuft im AP-Modus.
-                </div>
-            </div>
+            <div class="card">
+                <h2><svg class="icon"><use href="#i-settings"/></svg><span data-i18n="admin.system_control">System-Steuerung</span></h2>
 
-            <div class="admin-card">
-                <h2 data-i18n="admin.match_control">Match-Steuerung</h2>
-                
-                <button class="btn btn-warning" onclick="resetMatch()" data-i18n="admin.reset_match">
-                    Match zurücksetzen
-                </button>
-                
-                <button class="btn btn-primary" onclick="saveMatch()" data-i18n="admin.save_match">
-                    Match in Historie speichern
-                </button>
-                
-                <div class="warning-box">
-                    <strong>Achtung:</strong> Das Zurücksetzen löscht alle aktuellen Spieldaten.
-                </div>
-            </div>
-
-            <div class="admin-card">
-                <h2 data-i18n="admin.system_control">System-Steuerung</h2>
-
-                <div class="status-item">
-                    <label class="label" for="language-select">Sprache / Language / Idioma:</label>
-                    <select id="language-select" style="max-width: 300px; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                <div class="field">
+                    <label for="language-select">Sprache / Language / Idioma</label>
+                    <select id="language-select">
                         <option value="en">English</option>
                         <option value="de">Deutsch</option>
                         <option value="es">Español</option>
                     </select>
                 </div>
-
                 <div id="language-status-message" class="status-message"></div>
-
-                <button class="btn btn-primary" onclick="saveLanguage()">
-                    Sprache speichern / Save Language / Guardar Idioma
+                <button class="btn btn-primary block" onclick="saveLanguage()" data-i18n="admin.save_language">
+                    Sprache speichern
                 </button>
 
-                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                <hr>
 
-                <button class="btn btn-primary" onclick="viewLogs()" data-i18n="admin.view_logs">
+                <button class="btn btn-ghost block" onclick="viewLogs()" data-i18n="admin.view_logs">
                     System-Logs anzeigen
                 </button>
 
-                <div id="logs-container" style="display: none; margin-top: 15px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label class="label" for="log-lines">Anzahl Zeilen:</label>
-                        <select id="log-lines" style="padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+                <div id="logs-container" style="display: none; margin-top: 14px;">
+                    <div class="field">
+                        <label for="log-lines" data-i18n="admin.log_lines">Anzahl Zeilen</label>
+                        <select id="log-lines">
                             <option value="50">50</option>
                             <option value="100" selected>100</option>
                             <option value="200">200</option>
                             <option value="500">500</option>
                         </select>
                     </div>
-                    <textarea id="logs-display" readonly style="width: 100%; height: 300px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 0.85em; background: #f8f9fa; color: #333; resize: vertical; overflow-y: scroll;"></textarea>
-                    <div style="margin-top: 10px; display: flex; gap: 10px;">
-                        <button class="btn btn-primary" onclick="refreshLogs()" style="flex: 1;">
-                            Aktualisieren
-                        </button>
-                        <button class="btn btn-warning" onclick="closeLogs()" style="flex: 1;">
-                            Schließen
-                        </button>
+                    <textarea id="logs-display" readonly style="height: 300px;"></textarea>
+                    <div class="btn-row" style="margin-top: 10px;">
+                        <button class="btn btn-sm btn-primary" onclick="refreshLogs()" data-i18n="admin.refresh">Aktualisieren</button>
+                        <button class="btn btn-sm btn-secondary" onclick="closeLogs()" data-i18n="scoreboard.close">Schließen</button>
                     </div>
                 </div>
 
-                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                <hr>
 
-                <button class="btn btn-primary" onclick="restartService()" data-i18n="admin.restart_services">
-                    Dienste neu starten
+                <button class="btn btn-ghost block" onclick="restartService()">
+                    <svg class="icon"><use href="#i-refresh"/></svg>
+                    <span data-i18n="admin.restart_services">Dienste neu starten</span>
+                </button>
+                <button class="btn btn-danger block" onclick="shutdownSystem()">
+                    <svg class="icon"><use href="#i-power"/></svg>
+                    <span data-i18n="admin.shutdown">System herunterfahren</span>
                 </button>
 
-                <button class="btn btn-danger" onclick="shutdownSystem()" data-i18n="admin.shutdown">
-                    System herunterfahren
-                </button>
-
-                <div class="warning-box">
-                    <strong>Warnung:</strong> Das Herunterfahren stoppt alle Dienste und schaltet das System aus.
+                <div class="warning-box" data-i18n="admin.warning_shutdown">
+                    Warnung: Das Herunterfahren stoppt alle Dienste und schaltet das System aus.
                 </div>
             </div>
 
-            <div class="admin-card">
-                <h2 data-i18n="admin.wifi_ap">WiFi Access Point</h2>
+            <div class="card">
+                <h2><svg class="icon"><use href="#i-download"/></svg><span data-i18n="admin.update_title">Software-Update</span></h2>
+
+                <div id="update-status-message" class="status-message"></div>
+
+                <div class="row">
+                    <span class="label" data-i18n="admin.update_installed">Installierter Stand</span>
+                    <span class="value" id="update-current">--</span>
+                </div>
+                <div class="row">
+                    <span class="label" data-i18n="admin.update_state">Status</span>
+                    <span class="value" id="update-state">--</span>
+                </div>
+                <div class="row">
+                    <span class="label" data-i18n="admin.update_last_check">Letzte Prüfung</span>
+                    <span class="value" id="update-last-check">--</span>
+                </div>
+                <div class="row">
+                    <span class="label" data-i18n="admin.update_last_update">Letztes Update</span>
+                    <span class="value" id="update-last-update">--</span>
+                </div>
+                <div class="row">
+                    <label class="label" for="update-enabled" data-i18n="admin.update_auto">Automatisch aktualisieren</label>
+                    <input type="checkbox" id="update-enabled" onchange="saveUpdateSettings()">
+                </div>
+
+                <button class="btn btn-primary block" onclick="checkForUpdate(false)" data-i18n="admin.update_check_now">
+                    Jetzt nach Updates suchen
+                </button>
+                <button class="btn btn-warning block" id="update-install-btn" onclick="checkForUpdate(true)" style="display: none;" data-i18n="admin.update_install_now">
+                    Update jetzt installieren
+                </button>
+
+                <div class="warning-box" id="update-installer-hint" style="display: none;" data-i18n="admin.update_installer_hint">
+                    Dieses Update ändert auch das Installationsskript. Bitte einmalig per SSH "sudo ./install_complete.sh" ausführen.
+                </div>
+                <div class="note" data-i18n="admin.update_note">
+                    Updates werden von GitHub über das LAN-Kabel geladen. Während eines laufenden Matches wird nicht automatisch neu gestartet.
+                </div>
+            </div>
+            </div>
+            <div class="col">
+            <div class="card">
+                <h2><svg class="icon"><use href="#i-wifi"/></svg><span data-i18n="admin.wifi_ap">WiFi Access Point</span></h2>
                 <div id="wifi-ap-status-message" class="status-message"></div>
-                
-                <div class="status-item">
-                    <label class="label" for="wifi-ap-ssid" data-i18n="admin.ssid">SSID:</label>
-                    <input type="text" id="wifi-ap-ssid" style="max-width: 300px; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
+
+                <div class="row">
+                    <span class="label" data-i18n="admin.connected_devices">Verbundene Geräte</span>
+                    <span class="value" id="wifi-clients">0</span>
                 </div>
-                
-                <div class="status-item">
-                    <label class="label" for="wifi-ap-password" data-i18n="admin.password">Password:</label>
-                    <div style="display: flex; gap: 5px; max-width: 300px;">
-                        <input type="password" id="wifi-ap-password" minlength="8" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;">
-                        <button onclick="togglePasswordVisibility()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; background: #f8f9fa; cursor: pointer; flex-shrink: 0;">👁️</button>
+                <div class="row">
+                    <span class="label" data-i18n="admin.ip_address">IP-Adresse</span>
+                    <span class="value" id="wifi-ip">10.20.1.1</span>
+                </div>
+                <span id="wifi-ssid" class="hidden"></span>
+
+                <div class="field" style="margin-top: 14px;">
+                    <label for="wifi-ap-ssid" data-i18n="admin.ssid">SSID</label>
+                    <input type="text" id="wifi-ap-ssid">
+                </div>
+                <div class="field">
+                    <label for="wifi-ap-password" data-i18n="admin.password">Passwort</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="wifi-ap-password" minlength="8">
+                        <button class="icon-btn" onclick="togglePasswordVisibility()" style="width: 48px; height: auto;" aria-label="Show password">
+                            <svg class="icon"><use href="#i-eye"/></svg>
+                        </button>
                     </div>
                 </div>
-                
-                <div class="status-item">
-                    <label class="label" for="wifi-ap-enabled" data-i18n="admin.ap_enabled">AP aktiviert:</label>
-                    <input type="checkbox" id="wifi-ap-enabled" style="width: 20px; height: 20px; cursor: pointer;">
+                <div class="row">
+                    <label class="label" for="wifi-ap-enabled" data-i18n="admin.ap_enabled">AP aktiviert</label>
+                    <input type="checkbox" id="wifi-ap-enabled">
                 </div>
-                
-                <div style="text-align: center; margin: 20px 0;">
-                    <div style="background: white; padding: 15px; border-radius: 10px; display: inline-block;">
-                        <div style="color: #333; font-weight: bold; margin-bottom: 10px;">QR Code zum Verbinden</div>
-                        <div id="wifi-qr-code" style="min-height: 200px; display: flex; align-items: center; justify-content: center;">
-                            <div style="color: #999;">Lade QR Code...</div>
-                        </div>
-                        <div style="color: #666; font-size: 0.9em; margin-top: 10px;">
-                            Mit Smartphone scannen zum Verbinden
-                        </div>
+
+                <div class="center" style="margin: 18px 0;">
+                    <div class="qr-box">
+                        <div id="wifi-qr-code" style="min-height: 200px; display: flex; align-items: center; justify-content: center;"></div>
+                        <div class="cap" data-i18n="admin.qr_hint">Mit dem Smartphone scannen zum Verbinden</div>
                     </div>
                 </div>
-                
-                <button class="btn btn-primary" onclick="saveWiFiAPSettings()" data-i18n="admin.save_settings">
+
+                <button class="btn btn-primary block" onclick="saveWiFiAPSettings()" data-i18n="admin.save_settings">
                     Einstellungen speichern
                 </button>
 
                 <!-- Apply-Dialog: erscheint nach dem Speichern -->
-                <div id="wifi-apply-box" style="display:none; margin-top:16px; padding:16px;
-                     background:#e8f4f8; border-radius:10px; border:1px solid #b3d9ea;">
-                    <p style="margin:0 0 12px; font-weight:600; color:#1565c0;">
-                        ✅ Einstellungen gespeichert.<br>
-                        Jetzt auf den WLAN-Broadcast anwenden?
-                    </p>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button class="btn btn-primary" onclick="applyWiFiSettings()" id="wifi-apply-btn">
-                            📡 Jetzt anwenden
-                        </button>
-                        <button class="btn btn-secondary" onclick="document.getElementById('wifi-apply-box').style.display='none'">
-                            Später
-                        </button>
+                <div id="wifi-apply-box" class="note" style="display: none;">
+                    <p style="margin-bottom: 12px;"><strong data-i18n="admin.wifi_saved_apply">Einstellungen gespeichert. Jetzt auf den WLAN-Broadcast anwenden?</strong></p>
+                    <div class="btn-row">
+                        <button class="btn btn-sm btn-primary" onclick="applyWiFiSettings()" id="wifi-apply-btn" data-i18n="admin.wifi_apply_now">Jetzt anwenden</button>
+                        <button class="btn btn-sm btn-secondary" onclick="document.getElementById('wifi-apply-box').style.display='none'" data-i18n="admin.later">Später</button>
                     </div>
-                    <div id="wifi-apply-result" style="margin-top:10px;"></div>
+                    <div id="wifi-apply-result" style="margin-top: 10px;"></div>
                 </div>
 
                 <!-- Manuell-Dialog: erscheint wenn sudo fehlt -->
-                <div id="wifi-manual-box" style="display:none; margin-top:16px; padding:16px;
-                     background:#fff3cd; border-radius:10px; border:1px solid #ffc107;">
-                    <p style="margin:0 0 8px; font-weight:600; color:#856404;">
-                        ⚠️ Sudo-Berechtigung fehlt. Führe diesen Befehl einmalig am Pi aus:
-                    </p>
-                    <code id="wifi-manual-cmd" style="display:block; background:#fff; padding:10px;
-                          border-radius:6px; font-size:0.85em; word-break:break-all; color:#333;"></code>
-                    <button onclick="copyManualCmd()" style="margin-top:8px; padding:6px 14px;
-                            border:1px solid #856404; border-radius:6px; background:#fff;
-                            cursor:pointer; font-size:0.9em;">📋 Kopieren</button>
+                <div id="wifi-manual-box" class="warning-box" style="display: none;">
+                    <p style="margin-bottom: 8px;"><strong data-i18n="admin.wifi_sudo_missing">Sudo-Berechtigung fehlt. Führe diesen Befehl einmalig am Pi aus:</strong></p>
+                    <code id="wifi-manual-cmd"></code>
+                    <button class="btn btn-sm btn-secondary" onclick="copyManualCmd()" style="margin-top: 8px;" data-i18n="admin.copy">Kopieren</button>
                 </div>
 
-                <div class="warning-box">
-                    <strong>Hinweis:</strong> Änderungen erfordern einen Neustart des Systems
+                <div class="warning-box" data-i18n="admin.note_restart">
+                    Hinweis: Änderungen erfordern einen Neustart des Systems
                 </div>
             </div>
 
-            <div class="admin-card">
-                <h2 data-i18n="admin.system_info">System-Info</h2>
-                
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.version">Version:</span>
-                    <span class="value">1.0.0</span>
+            <div class="card">
+                <h2><svg class="icon"><use href="#i-ball"/></svg><span data-i18n="admin.match_control">Match-Steuerung</span></h2>
+
+                <button class="btn btn-primary block" onclick="saveMatch()">
+                    <svg class="icon"><use href="#i-flag"/></svg>
+                    <span data-i18n="admin.save_match">Match in Historie speichern</span>
+                </button>
+                <button class="btn btn-warning block" onclick="resetMatch()">
+                    <svg class="icon"><use href="#i-refresh"/></svg>
+                    <span data-i18n="admin.reset_match">Match zurücksetzen</span>
+                </button>
+
+                <div class="warning-box" data-i18n="admin.warning_reset">
+                    Achtung: Das Zurücksetzen löscht alle aktuellen Spieldaten.
                 </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.platform">Plattform:</span>
-                    <span class="value" id="platform">Raspberry Pi</span>
-                </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.python">Python:</span>
-                    <span class="value" id="python-version">3.x</span>
-                </div>
-                <div class="status-item">
-                    <span class="label" data-i18n="admin.last_update">Letzte Aktualisierung:</span>
-                    <span class="value" id="last-update">--</span>
-                </div>
+            </div>
             </div>
         </div>
-    </div>
+    </main>
 
     <script>
         async function loadSystemStatus() {
@@ -441,22 +227,22 @@
                 const response = await fetch('/api/state');
                 const data = await response.json();
                 
-                document.getElementById('camera-status').textContent = 'Online';
+                document.getElementById('camera-status').textContent = tr('admin.online', 'Online');
                 document.getElementById('camera-status').classList.add('online');
                 
-                document.getElementById('wifi-status').textContent = 'Aktiv';
+                document.getElementById('wifi-status').textContent = tr('wifi.active', 'Aktiv');
                 document.getElementById('wifi-status').classList.add('online');
                 
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('de-DE');
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             } catch (error) {
                 console.error('Error loading status:', error);
-                document.getElementById('camera-status').textContent = 'Offline';
+                document.getElementById('camera-status').textContent = tr('admin.offline', 'Offline');
                 document.getElementById('camera-status').classList.add('offline');
             }
         }
 
         async function resetMatch() {
-            if (!confirm('Möchten Sie das aktuelle Match wirklich zurücksetzen? Alle Spieldaten gehen verloren!')) {
+            if (!await confirmDialog(tr('scoreboard.reset_title', 'Match zurücksetzen?'), tr('scoreboard.reset_message', 'Der Spielstand wird auf 0:0 zurückgesetzt.'), tr('scoreboard.reset', 'Zurücksetzen'), true)) {
                 return;
             }
 
@@ -479,7 +265,7 @@
         }
 
         async function saveMatch() {
-            if (!confirm('Möchten Sie das laufende Match in die Historie speichern und beenden?')) {
+            if (!await confirmDialog(tr('scoreboard.end_match', 'Match beenden') + '?', tr('scoreboard.end_match_message', 'Das Match wird mit dem aktuellen Stand in der Statistik gespeichert.'), tr('scoreboard.end_match', 'Match beenden'))) {
                 return;
             }
 
@@ -504,7 +290,7 @@
         }
 
         async function restartService() {
-            if (!confirm('Möchten Sie alle Dienste neu starten? Dies kann einige Sekunden dauern.')) {
+            if (!await confirmDialog(tr('admin.restart_services', 'Dienste neu starten') + '?', tr('admin.restart_confirm', 'Der Server ist für etwa 30 Sekunden nicht erreichbar.'), tr('admin.restart_services', 'Dienste neu starten'))) {
                 return;
             }
 
@@ -606,7 +392,7 @@
             if (!ssid || !password) {
                 console.warn('SSID oder Password fehlt für QR-Code Generierung');
                 document.getElementById('wifi-qr-code').innerHTML = `
-                    <div style="color: #999;">Keine WiFi-Daten verfügbar</div>
+                    <div style="color: #888;">Keine WiFi-Daten verfügbar</div>
                 `;
                 return;
             }
@@ -699,7 +485,7 @@
                 const data = await response.json();
 
                 if (data.status === 'success') {
-                    result.innerHTML = `<span style="color:#155724;font-weight:600;">✅ ${data.message}</span>`;
+                    result.innerHTML = `<span style="color:#2fbf63;font-weight:600;">${data.message}</span>`;
                     document.getElementById('wifi-apply-box').style.display = 'none';
                     showWiFiAPStatus(data.message, 'success');
                 } else if (data.status === 'no_sudo') {
@@ -711,10 +497,10 @@
                     document.getElementById('wifi-manual-cmd').textContent = cmd;
                     document.getElementById('wifi-manual-box').style.display = 'block';
                 } else {
-                    result.innerHTML = `<span style="color:#721c24;">❌ ${data.message}</span>`;
+                    result.innerHTML = `<span style="color:var(--red);">${data.message}</span>`;
                 }
             } catch (error) {
-                result.innerHTML = `<span style="color:#721c24;">❌ Verbindungsfehler</span>`;
+                result.innerHTML = `<span style="color:var(--red);">Verbindungsfehler</span>`;
             } finally {
                 btn.disabled = false;
                 btn.textContent = '📡 Jetzt anwenden';
@@ -834,6 +620,97 @@
             const logsContainer = document.getElementById('logs-container');
             logsContainer.style.display = 'none';
         }
+
+        // Software-Update
+        const UPDATE_STATE_FALLBACK = {
+            up_to_date: 'Aktuell',
+            update_available: 'Update verfügbar',
+            deferred: 'Update wartet auf Match-Ende',
+            restart_pending: 'Update installiert – Neustart…',
+            offline: 'GitHub nicht erreichbar (LAN-Kabel?)',
+            failed: 'Fehlgeschlagen',
+            skipped: 'Fehlerhaftes Update übersprungen',
+            diverged: 'Lokaler Stand weicht ab',
+            local_changes: 'Lokale Änderungen vorhanden',
+            no_git: 'Kein git-Repository',
+            checking: 'Prüfe…',
+            unknown: 'Noch nicht geprüft'
+        };
+
+        function updateStateText(state) {
+            return getTranslation('admin.update_states.' + state) || UPDATE_STATE_FALLBACK[state] || state;
+        }
+
+        function formatUpdateTime(value) {
+            if (!value) return '--';
+            const date = new Date(value);
+            return isNaN(date) ? value : date.toLocaleString([], {dateStyle: 'short', timeStyle: 'short'});
+        }
+
+        async function loadUpdateStatus() {
+            try {
+                const response = await fetch('/api/update/status');
+                const data = await response.json();
+                const current = data.current || {};
+                document.getElementById('update-current').textContent = current.commit_short
+                    ? `${current.commit_short} (${formatUpdateTime(current.date)})` : '--';
+                let stateText = updateStateText(data.checking ? 'checking' : data.state);
+                if (!data.checking && data.message && ['failed', 'skipped', 'diverged', 'local_changes', 'no_git'].includes(data.state)) {
+                    stateText += ': ' + data.message;
+                }
+                document.getElementById('update-state').textContent = stateText;
+                document.getElementById('update-last-check').textContent = formatUpdateTime(data.last_check);
+                document.getElementById('update-last-update').textContent = formatUpdateTime(data.last_update);
+                document.getElementById('update-enabled').checked = data.enabled;
+                document.getElementById('update-install-btn').style.display =
+                    ['update_available', 'deferred', 'skipped'].includes(data.state) ? '' : 'none';
+                document.getElementById('update-installer-hint').style.display = data.installer_changed ? '' : 'none';
+            } catch (error) {
+                console.error('Error loading update status:', error);
+            }
+        }
+
+        function showUpdateStatus(message, type) {
+            const statusMsg = document.getElementById('update-status-message');
+            statusMsg.textContent = message;
+            statusMsg.className = 'status-message status-' + type;
+            statusMsg.style.display = 'block';
+            setTimeout(() => { statusMsg.style.display = 'none'; }, 4000);
+        }
+
+        async function checkForUpdate(apply) {
+            if (apply && !await confirmDialog(tr('admin.update_install_now', 'Update jetzt installieren') + '?', tr('admin.update_confirm_message', 'Der Server startet danach neu (ca. 30 Sekunden).'), tr('admin.update_install_now', 'Update jetzt installieren'))) {
+                return;
+            }
+            try {
+                await fetch('/api/update/check', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({apply: apply})
+                });
+                showUpdateStatus(updateStateText('checking'), 'success');
+                setTimeout(loadUpdateStatus, 1500);
+            } catch (error) {
+                console.error('Error checking for update:', error);
+                showUpdateStatus(updateStateText('failed'), 'error');
+            }
+        }
+
+        async function saveUpdateSettings() {
+            try {
+                await fetch('/api/update/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({enabled: document.getElementById('update-enabled').checked})
+                });
+                loadUpdateStatus();
+            } catch (error) {
+                console.error('Error saving update settings:', error);
+            }
+        }
+
+        loadUpdateStatus();
+        setInterval(loadUpdateStatus, 5000);
 
         // Event-Listener für Zeilen-Änderung
         document.addEventListener('DOMContentLoaded', function() {

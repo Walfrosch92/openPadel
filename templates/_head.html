@@ -1,0 +1,10 @@
+{# Gemeinsamer <head>-Teil: Design der App (static/app.css) + Übersetzungen #}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#06070D" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#F3F5FC" media="(prefers-color-scheme: light)">
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="apple-touch-icon" href="/static/logo.png">
+    <link rel="stylesheet" href="/static/app.css?v=3">
+    <script>window.I18N = {{ t | tojson }};</script>
+    <script src="/static/js/i18n.js?v=3"></script>

@@ -1,6 +1,8 @@
 // i18n.js - Internationalisierung
-let translations = {};
-let currentLang = 'en';
+// Die Seiten betten die Übersetzungen direkt ein (templates/_head.html),
+// damit Texte nicht erst nach dem Laden umspringen.
+let translations = window.I18N || {};
+let currentLang = document.documentElement.lang || 'en';
 
 // Lade Übersetzungen
 async function loadTranslations() {
@@ -62,6 +64,17 @@ function getTranslation(key) {
     }
     
     return typeof value === 'string' ? value : null;
+}
+
+// Übersetzung mit Fallback und Platzhaltern: tr('stats.set_n', 'Satz {n}', {n: 2})
+function tr(key, fallback, vars) {
+    let text = getTranslation(key) || fallback || key;
+    if (vars) {
+        for (const name in vars) {
+            text = text.split('{' + name + '}').join(vars[name]);
+        }
+    }
+    return text;
 }
 
 // Initialisiere beim Laden

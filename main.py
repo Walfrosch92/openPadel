@@ -23,6 +23,13 @@ import time
 import subprocess
 import queue
 import asyncio
+import hashlib
+import os
+import re
+import signal
+import uuid
+
+import updater
 
 # ============================================================================
 # LOGGING SETUP
@@ -71,6 +78,29 @@ file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 
 # ============================================================================
+# SHARED HELPERS
+# ============================================================================
+
+# Game-Dauern über 40 Minuten gelten als Messfehler (gleiche Grenze wie die App)
+MAX_GAME_DURATION_SECONDS = 40 * 60
+
+# Punkte kommen aus dem Event-Loop UND aus dem Gesten-Thread
+match_lock = threading.RLock()
+
+def new_match_id() -> str:
+    """Stabile, eindeutige Match-ID (nie rein numerisch)"""
+    return f"m_{uuid.uuid4().hex[:16]}"
+
+def write_json_atomic(path: Path, data):
+    """Schreibt JSON atomar - ein Stromausfall zerstört die Datei nicht."""
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+# ============================================================================
 # PYDANTIC MODELS
 # ============================================================================
 
@@ -88,6 +118,8 @@ class MatchState(BaseModel):
     match_started: bool = False
     match_finished: bool = False
     winner: Optional[str] = None
+    winner_team: Optional[int] = None  # 1/2, None = offen oder Unentschieden
+    match_id: Optional[str] = None  # stabil ab dem ersten Punkt
     match_start_time: Optional[str] = None
     match_end_time: Optional[str] = None
     history: List[Dict] = Field(default_factory=list)
@@ -219,13 +251,31 @@ class GameLogic:
     def __init__(self, game_mode_manager: GameModeManager):
         self.game_mode_manager = game_mode_manager
     
+    def uses_advantage(self, mode_id: str) -> bool:
+        """Vorteil-Regel aktiv? (Golden Point / No-Ad = nächster Punkt entscheidet)"""
+        mode = self.game_mode_manager.get_mode(mode_id)
+        if not mode:
+            return True
+        rules = mode.get("rules", {})
+        return bool(rules.get("advantage", True)) and not rules.get("golden_point", False)
+
+    def tiebreak_at(self, mode_id: str) -> List[int]:
+        """Spielstand, bei dem der Tie-Break beginnt (Standard 6:6)"""
+        mode = self.game_mode_manager.get_mode(mode_id)
+        if not mode:
+            return [6, 6]
+        value = mode.get("rules", {}).get("tiebreak_at_games")
+        if isinstance(value, list) and len(value) == 2:
+            return value
+        # Wie in der App: ohne gültigen Spielstand gibt es keinen Tie-Break
+        return [-1, -1]
+
     def get_score_display(self, p1_points: int, p2_points: int, mode_id: str = "mit_vorteil_tiebreak") -> Tuple[str, str]:
         """
         Gibt die Anzeige-Strings für beide Spieler zurück
         Behandelt Deuce, Advantage, etc.
         """
-        mode = self.game_mode_manager.get_mode(mode_id)
-        advantage = mode["rules"]["advantage"] if mode else True
+        advantage = self.uses_advantage(mode_id)
         
         if advantage:
             if p1_points >= 3 and p2_points >= 3:
@@ -250,8 +300,7 @@ class GameLogic:
         Prüft, ob ein Spiel gewonnen wurde
         Returns: 1 für Spieler 1, 2 für Spieler 2, None wenn nicht entschieden
         """
-        mode = self.game_mode_manager.get_mode(mode_id)
-        advantage = mode["rules"]["advantage"] if mode else True
+        advantage = self.uses_advantage(mode_id)
         
         if advantage:
             if p1_points >= 4 and p1_points - p2_points >= 2:
@@ -288,7 +337,7 @@ class GameLogic:
         
         # Tiebreak
         if tiebreak:
-            tiebreak_at = rules.get("tiebreak_at_games", [6, 6])
+            tiebreak_at = self.tiebreak_at(mode_id)
             if p1_games == tiebreak_at[0] and p2_games == tiebreak_at[1]:
                 # Im Tiebreak wird dieser Check nicht verwendet
                 pass
@@ -315,8 +364,7 @@ class GameLogic:
         Prüft, ob Deuce-Situation vorliegt
         Returns: True wenn beide >= 3 Punkte und gleich
         """
-        mode = self.game_mode_manager.get_mode(mode_id)
-        advantage = mode["rules"]["advantage"] if mode else True
+        advantage = self.uses_advantage(mode_id)
         
         if advantage:
             return p1_points >= 3 and p2_points >= 3 and p1_points == p2_points
@@ -328,8 +376,7 @@ class GameLogic:
         Prüft, ob ein Spieler Advantage hat
         Returns: 1 für Spieler 1, 2 für Spieler 2, None wenn kein Advantage
         """
-        mode = self.game_mode_manager.get_mode(mode_id)
-        advantage = mode["rules"]["advantage"] if mode else True
+        advantage = self.uses_advantage(mode_id)
 
         if not advantage:
             return None
@@ -356,7 +403,7 @@ class GameLogic:
         if not tiebreak:
             return False
 
-        tiebreak_at = rules.get("tiebreak_at_games", [6, 6])
+        tiebreak_at = self.tiebreak_at(mode_id)
         return p1_games == tiebreak_at[0] and p2_games == tiebreak_at[1]
 
     def check_tiebreak_won(self, p1_points: int, p2_points: int, mode_id: str = "mit_vorteil_tiebreak") -> Optional[int]:
@@ -368,8 +415,11 @@ class GameLogic:
         mode = self.game_mode_manager.get_mode(mode_id)
         if mode:
             rules = mode["rules"]
-            tiebreak_points = rules.get("tiebreak_points", 7)
-            min_diff = rules.get("tiebreak_minimum_difference", 2)
+            # Die App speichert "tiebreak_points_to_win", die Standard-Modi
+            # "tiebreak_points" - beide akzeptieren.
+            tiebreak_points = (rules.get("tiebreak_points_to_win")
+                               or rules.get("tiebreak_points") or 7)
+            min_diff = rules.get("tiebreak_minimum_difference") or 2
         else:
             # Fallback auf Standard-Werte
             tiebreak_points = 7
@@ -424,16 +474,16 @@ class StateManager:
         self.data_dir.mkdir(exist_ok=True)
         self.state_file = self.data_dir / "match_state.json"
         self.history_file = self.data_dir / "match_history.json"
+        self._history_lock = threading.RLock()
     
     def save_state(self, state: MatchState):
         """Speichert aktuellen Match-Status"""
         try:
-            with open(self.state_file, 'w', encoding='utf-8') as f:
-                json.dump(state.dict(), f, indent=2, ensure_ascii=False)
+            write_json_atomic(self.state_file, state.dict())
             logger.debug(f"Status gespeichert: {state.player1_points}-{state.player2_points}")
         except Exception as e:
             logger.error(f"Fehler beim Speichern: {e}")
-    
+
     def load_state(self) -> MatchState:
         """Lädt gespeicherten Match-Status"""
         try:
@@ -444,82 +494,149 @@ class StateManager:
                 return MatchState(**data)
         except Exception as e:
             logger.warning(f"Fehler beim Laden: {e}")
-        
+
         return MatchState()
-    
-    def save_match_to_history(self, state: MatchState):
-        """Speichert abgeschlossenes Match in Historie mit Statistiken"""
-        try:
-            history = []
-            if self.history_file.exists():
-                with open(self.history_file, 'r', encoding='utf-8') as f:
-                    history = json.load(f)
-            
-            # Match-Daten mit Statistiken
-            match_data = state.dict()
-            
-            # iOS-Kompatibilität: Explizit benötigte Felder hinzufügen
-            match_data['team_a'] = state.player1_name
-            match_data['team_b'] = state.player2_name
-            match_data['team_a_name'] = state.player1_name
-            match_data['team_b_name'] = state.player2_name
-            match_data['sets_a'] = state.player1_sets
-            match_data['sets_b'] = state.player2_sets
-            
-            # Berechne Dauer in Sekunden für iOS
-            duration_seconds = 0
-            duration_minutes = 0
-            if state.match_start_time and state.match_end_time:
+
+    # ------------------------------------------------------------------
+    # Match-Historie (Liste von Dicts, älteste zuerst)
+    # ------------------------------------------------------------------
+
+    def load_history_records(self) -> List[Dict]:
+        """Lädt die Historie und ergänzt bei älteren Einträgen fehlende Felder
+        (stabile ID, Modus, Punkteverlauf). Ergänzungen werden einmalig gespeichert."""
+        with self._history_lock:
+            if not self.history_file.exists():
+                return []
+            with open(self.history_file, 'r', encoding='utf-8') as f:
+                history = json.load(f)
+            if not isinstance(history, list):
+                return []
+            history = [m for m in history if isinstance(m, dict)]
+
+            changed = False
+            for match in history:
                 try:
-                    start = datetime.fromisoformat(state.match_start_time)
-                    end = datetime.fromisoformat(state.match_end_time)
-                    duration_seconds = int((end - start).total_seconds())
-                    duration_minutes = int(duration_seconds / 60)
-                except:
-                    pass
-            
-            # iOS erwartet duration_seconds
-            match_data['duration_seconds'] = duration_seconds
-            
-            # Konvertiere set_history zu sets-Format für iOS
-            if state.set_history:
-                match_data['sets'] = [
-                    {"score_a": s[0], "score_b": s[1]} 
-                    for s in state.set_history
-                ]
-            
-            # Berechne Statistiken
-            player1_points = sum(1 for h in state.history if "Punkt für Spieler 1" in h.get("action", ""))
-            player2_points = sum(1 for h in state.history if "Punkt für Spieler 2" in h.get("action", ""))
-            
-            match_data['statistics'] = {
-                "total_points": player1_points + player2_points,
-                "duration_minutes": duration_minutes,
-                "player1_points_won": player1_points,
-                "player2_points_won": player2_points,
-                "final_score_sets": f"{state.player1_sets}:{state.player2_sets}"
-            }
-            
-            history.append(match_data)
-            
-            with open(self.history_file, 'w', encoding='utf-8') as f:
-                json.dump(history, f, indent=2, ensure_ascii=False)
-            
+                    changed = upgrade_history_record(match) or changed
+                except Exception as e:
+                    logger.warning(f"Historie-Eintrag konnte nicht ergänzt werden: {e}")
+            if changed:
+                self.save_history_records(history)
+            return history
+
+    def save_history_records(self, history: List[Dict]):
+        with self._history_lock:
+            write_json_atomic(self.history_file, history)
+
+    def save_match_to_history(self, state: MatchState):
+        """Speichert ein beendetes Match (ersetzt einen Eintrag mit gleicher ID)"""
+        try:
+            with self._history_lock:
+                history = self.load_history_records()
+                record = build_history_record(state)
+                history = [m for m in history if m.get("id") != record["id"]]
+                history.append(record)
+                self.save_history_records(history)
             logger.info(f"Match zur Historie hinzugefügt - {state.winner} gewinnt {state.player1_sets}:{state.player2_sets}")
         except Exception as e:
             logger.error(f"Fehler beim Speichern der Historie: {e}")
-    
-    def load_history(self) -> List[MatchState]:
-        """Lädt Match-Historie"""
+
+    def remove_match(self, match_id: str) -> bool:
+        """Entfernt ein Match per ID. False, wenn es nicht (mehr) existiert."""
         try:
-            if self.history_file.exists():
-                with open(self.history_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                return [MatchState(**match) for match in data]
+            with self._history_lock:
+                history = self.load_history_records()
+                remaining = [m for m in history if m.get("id") != match_id]
+                if len(remaining) == len(history):
+                    return False
+                self.save_history_records(remaining)
+                return True
         except Exception as e:
-            logger.error(f"Fehler beim Laden der Historie: {e}")
-        
-        return []
+            logger.error(f"Fehler beim Entfernen aus der Historie: {e}")
+            return False
+
+def _match_format(sets_to_win: int) -> str:
+    """Format-ID der App: single_set / best_of_3 / best_of_5"""
+    best_of = sets_to_win * 2 - 1
+    return "single_set" if best_of == 1 else "best_of_5" if best_of == 5 else "best_of_3"
+
+def _duration_seconds(match: Dict) -> int:
+    start = _parse_time(match.get("match_start_time"))
+    end = _parse_time(match.get("match_end_time"))
+    if start is None or end is None:
+        return 0
+    return max(0, int((end - start).total_seconds()))
+
+def upgrade_history_record(match: Dict) -> bool:
+    """Ergänzt fehlende Felder eines Historie-Eintrags. Returns True bei Änderung."""
+    before = len(match), match.get("id")
+    p1 = match.get("player1_name") or match.get("team_a") or "Team A"
+    p2 = match.get("player2_name") or match.get("team_b") or "Team B"
+    sets_to_win = match.get("sets_to_win") or 2
+
+    if not match.get("id"):
+        # Deterministisch, damit ein Eintrag immer dieselbe ID bekommt
+        seed = f"{match.get('match_start_time')}|{match.get('match_end_time')}|{p1}|{p2}"
+        match["id"] = "m_" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:16]
+    match.setdefault("team_a", p1)
+    match.setdefault("team_b", p2)
+    match.setdefault("team_a_name", p1)
+    match.setdefault("team_b_name", p2)
+    match.setdefault("best_of", sets_to_win * 2 - 1)
+    match.setdefault("mode", f"{match.get('game_mode', 'mit_vorteil_tiebreak')}|{_match_format(sets_to_win)}")
+    if "timestamp" not in match and match.get("match_end_time"):
+        match["timestamp"] = match["match_end_time"]
+    if "sets" not in match:
+        match["sets"] = [{"score_a": s[0], "score_b": s[1]} for s in match.get("set_history", [])]
+    if "duration_seconds" not in match:
+        match["duration_seconds"] = _duration_seconds(match)
+    if "winner_team" not in match:
+        winner = match.get("winner")
+        match["winner_team"] = 1 if winner == p1 else 2 if winner == p2 else None
+    if "point_history" not in match and match.get("history"):
+        match["point_history"] = build_point_history(match)
+    return (len(match), match.get("id")) != before
+
+def build_history_record(state: MatchState) -> Dict:
+    """Historie-Eintrag eines beendeten Matches (inkl. aller App-Felder)"""
+    record = state.dict()
+    record["id"] = state.match_id or new_match_id()
+    record["sets_a"] = state.player1_sets
+    record["sets_b"] = state.player2_sets
+    record["timestamp"] = state.match_end_time or datetime.now().isoformat()
+    record["point_history"] = build_point_history(record)
+    upgrade_history_record(record)
+
+    player1_points, player2_points = count_points(state.history)
+    record["statistics"] = {
+        "total_points": player1_points + player2_points,
+        "duration_minutes": record["duration_seconds"] // 60,
+        "player1_points_won": player1_points,
+        "player2_points_won": player2_points,
+        "final_score_sets": f"{state.player1_sets}:{state.player2_sets}"
+    }
+    return record
+
+def app_history_record(match: Dict) -> Dict:
+    """Match im Format der App (CompletedMatch): Seite statt Name als Gewinner,
+    damit auch gleichnamige Teams eindeutig sind; None = Unentschieden."""
+    winner_team = match.get("winner_team")
+    record = {
+        "id": match["id"],
+        "team_a": match.get("team_a", "Team A"),
+        "team_b": match.get("team_b", "Team B"),
+        "winner": "A" if winner_team == 1 else "B" if winner_team == 2 else None,
+        "sets": match.get("sets", []),
+        "mode": match.get("mode", "mit_vorteil_tiebreak|best_of_3"),
+        "timestamp": match.get("timestamp") or match.get("match_end_time") or "",
+    }
+    if match.get("match_start_time"):
+        record["match_start_time"] = match["match_start_time"]
+    if match.get("duration_seconds"):
+        record["duration_seconds"] = match["duration_seconds"]
+    point_history = match.get("point_history")
+    if point_history and point_history.get("sets"):
+        record["point_history"] = point_history
+    return record
 
 # ============================================================================
 # WEBCAM SETTINGS MANAGER
@@ -1175,8 +1292,7 @@ def get_template_context(request: Request, **kwargs) -> dict:
 
 def calculate_statistics(state: MatchState) -> Dict:
     """Berechnet Match-Statistiken aus dem State"""
-    player1_points = sum(1 for h in state.history if "Punkt für Spieler 1" in h.get("action", ""))
-    player2_points = sum(1 for h in state.history if "Punkt für Spieler 2" in h.get("action", ""))
+    player1_points, player2_points = count_points(state.history)
     
     duration_minutes = 0
     if state.match_start_time and state.match_end_time:
@@ -1200,386 +1316,348 @@ def calculate_statistics(state: MatchState) -> Dict:
         "match_end_time": state.match_end_time
     }
 
-def undo_point(state: MatchState) -> MatchState:
+def _parse_time(value) -> Optional[datetime]:
+    """Parst ISO-Zeitstempel tolerant (auch mit 'Z'); immer naive Lokalzeit."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone().replace(tzinfo=None)
+    return parsed
+
+def _entry_team(entry: Dict) -> Optional[int]:
+    """Welches Team hat diesen History-Eintrag gepunktet (1/2), sonst None"""
+    team = entry.get("team")
+    if team in (1, 2):
+        return team
+    action = entry.get("action", "")
+    if "Spieler 1" in action or "Team 1" in action:
+        return 1
+    if "Spieler 2" in action or "Team 2" in action:
+        return 2
+    return None
+
+def count_points(history: List[Dict]) -> Tuple[int, int]:
+    """Gewonnene Punkte pro Team aus der Punkt-Historie"""
+    teams = [_entry_team(h) for h in history]
+    return teams.count(1), teams.count(2)
+
+def _score_point(state: MatchState, player: int, now: datetime,
+                 legacy_tiebreak_serve: bool = False) -> Dict:
     """
-    Macht letzten Punkt rückgängig - VOLLSTÄNDIGE IMPLEMENTIERUNG MIT TIEBREAK
+    Kern der Zähllogik: wendet EINEN Punkt auf den State an.
 
-    Rekonstruiert den kompletten State aus der History neu, inkl. Tiebreak-Logik
+    Ohne Seiteneffekte (kein Speichern, kein History-Eintrag), damit Live-
+    Zählung, Undo-Replay und Punkteverlauf exakt dieselben Regeln benutzen.
+    Returns: Infos zum Punkt (Satz-Index, Aufschläger, Tie-Break, Game-Gewinner,
+    Game-Dauer) für den Punkteverlauf.
     """
-    if len(state.history) == 0:
-        logger.warning("Keine History zum Undo vorhanden")
-        return state
+    stamp = now.isoformat()
 
-    # Entferne letzten History-Eintrag
-    removed_action = state.history.pop()
-    logger.info(f"Undo: {removed_action.get('action')}")
+    if not state.match_started or not state.match_start_time:
+        state.match_started = True
+        state.match_start_time = state.match_start_time or stamp
+    if not state.match_id:
+        state.match_id = new_match_id()
 
-    # Speichere wichtige Einstellungen
-    player1_name = state.player1_name
-    player2_name = state.player2_name
-    game_mode = state.game_mode
-    sets_to_win = state.sets_to_win
-    match_start_time = state.match_start_time
+    # Tie-Break starten (normalerweise schon nach dem letzten Game gesetzt)
+    if not state.in_tiebreak and game_logic.check_tiebreak_needed(
+            state.player1_games, state.player2_games, state.game_mode):
+        _start_tiebreak(state)
 
-    # Erstelle neuen State
-    new_state = MatchState(
+    # Game-Dauer zählt ab dem ERSTEN Punkt des Games (Pausen zählen nicht)
+    if state.current_game_start_time is None:
+        state.current_game_start_time = stamp
+
+    info = {
+        "set": len(state.set_history),
+        "server": state.server,
+        "tb": state.in_tiebreak,
+        "game_winner": None,
+        "duration": None,
+    }
+
+    if player == 1:
+        state.player1_points += 1
+    else:
+        state.player2_points += 1
+
+    if state.in_tiebreak:
+        state.tiebreak_total_points += 1
+        game_winner = game_logic.check_tiebreak_won(
+            state.player1_points, state.player2_points, state.game_mode)
+    else:
+        game_winner = game_logic.check_game_won(
+            state.player1_points, state.player2_points, state.game_mode)
+
+    if not game_winner:
+        if state.in_tiebreak:
+            state.server = game_logic.get_tiebreak_server(
+                state.tiebreak_total_points, state.tiebreak_server_at_start)
+        return info
+
+    # ---- Game (oder Tie-Break) gewonnen ----
+    info["game_winner"] = game_winner
+    start = _parse_time(state.current_game_start_time)
+    if start is not None:
+        duration = max(0, int((now - start).total_seconds()))
+        state.game_durations.append(duration)
+        info["duration"] = duration
+    state.current_game_start_time = None
+
+    was_tiebreak = state.in_tiebreak
+    if game_winner == 1:
+        state.player1_games += 1
+    else:
+        state.player2_games += 1
+    state.player1_points = 0
+    state.player2_points = 0
+
+    if was_tiebreak:
+        set_winner = game_winner
+        if legacy_tiebreak_serve:
+            state.server = 2 if game_winner == 1 else 1
+        else:
+            # FIP: Den nächsten Satz beginnt das Paar, das im Tie-Break NICHT
+            # zuerst aufgeschlagen hat.
+            state.server = 2 if state.tiebreak_server_at_start == 1 else 1
+        state.in_tiebreak = False
+        state.tiebreak_total_points = 0
+    else:
+        state.server = 2 if state.server == 1 else 1
+        set_winner = game_logic.check_set_won(
+            state.player1_games, state.player2_games, state.game_mode)
+
+    if not set_winner:
+        if game_logic.check_tiebreak_needed(
+                state.player1_games, state.player2_games, state.game_mode):
+            _start_tiebreak(state)
+        return info
+
+    # ---- Satz gewonnen ----
+    state.set_history.append([state.player1_games, state.player2_games])
+    if set_winner == 1:
+        state.player1_sets += 1
+    else:
+        state.player2_sets += 1
+    state.player1_games = 0
+    state.player2_games = 0
+
+    match_winner = game_logic.check_match_won(
+        state.player1_sets, state.player2_sets, state.sets_to_win)
+    if match_winner:
+        state.match_finished = True
+        state.match_end_time = stamp
+        state.winner_team = match_winner
+        state.winner = state.player1_name if match_winner == 1 else state.player2_name
+
+    return info
+
+def _start_tiebreak(state: MatchState):
+    state.in_tiebreak = True
+    state.tiebreak_server_at_start = state.server
+    state.tiebreak_total_points = 0
+    state.player1_points = 0
+    state.player2_points = 0
+
+def replay_history(entries: List[Dict], *, player1_name: str, player2_name: str,
+                   game_mode: str, sets_to_win: int, initial_server: int = 1,
+                   match_id: Optional[str] = None, servers_known: bool = True,
+                   legacy_tiebreak_serve: bool = False) -> Tuple[MatchState, Dict]:
+    """
+    Baut State UND Punkteverlauf aus den History-Einträgen neu auf.
+
+    Punkteverlauf-Format (wie in der App, alle Sätze in Reihenfolge):
+    {"sets":[{"games":[{"w":"A","s":"B","tb":false,"p":["A","B",...],"u":0,"d":95}],
+              "unknown_games":0}]}
+    """
+    state = MatchState(
         player1_name=player1_name,
         player2_name=player2_name,
         game_mode=game_mode,
         sets_to_win=sets_to_win,
-        match_start_time=match_start_time,
-        match_started=True if match_start_time else False,
-        server=1  # Startet bei 1, wird beim Replay korrekt gesetzt
+        server=initial_server if initial_server in (1, 2) else 1,
+        match_id=match_id,
     )
+    sets: List[Dict] = []
+    current_game: Optional[Dict] = None
+    current_set = 0
 
-    # Replay alle verbleibenden History-Einträge
-    temp_history = state.history.copy()
-    new_state.history = []
+    def set_bucket(index: int) -> Dict:
+        while len(sets) <= index:
+            sets.append({"games": [], "unknown_games": 0})
+        return sets[index]
 
-    for action in temp_history:
-        # Extrahiere Spieler aus Action
-        if "Punkt für Spieler 1" in action.get("action", "") or "Punkt für Team 1" in action.get("action", ""):
-            player = 1
-        elif "Punkt für Spieler 2" in action.get("action", "") or "Punkt für Team 2" in action.get("action", ""):
-            player = 2
-        else:
+    for entry in entries:
+        team = _entry_team(entry)
+        if team is None:
             continue
+        if state.match_finished:
+            break
+        # Der beim Punkt gespeicherte Aufschläger gewinnt (deckt die Wahl vor
+        # dem Match und manuelle Korrekturen während des Matches ab).
+        if entry.get("server") in (1, 2):
+            _set_server(state, entry["server"])
 
-        # Prüfen ob Tie-Break gestartet werden muss
-        if not new_state.in_tiebreak and game_logic.check_tiebreak_needed(
-            new_state.player1_games,
-            new_state.player2_games,
-            new_state.game_mode
-        ):
-            new_state.in_tiebreak = True
-            new_state.tiebreak_server_at_start = new_state.server
-            new_state.tiebreak_total_points = 0
-            new_state.player1_points = 0
-            new_state.player2_points = 0
-            logger.info(f"Tie-Break gestartet beim Replay! Team {new_state.tiebreak_server_at_start} beginnt.")
+        when = _parse_time(entry.get("timestamp")) or datetime.now()
+        info = _score_point(state, team, when, legacy_tiebreak_serve)
+        state.history.append(entry)
 
-        # Punkt hinzufügen
-        if player == 1:
-            new_state.player1_points += 1
-        else:
-            new_state.player2_points += 1
+        if current_game is None:
+            current_set = info["set"]
+            current_game = {
+                "w": None,
+                "s": ("A" if info["server"] == 1 else "B") if servers_known else "",
+                "tb": info["tb"],
+                "p": [],
+                "u": 0,
+            }
+        current_game["p"].append("A" if team == 1 else "B")
 
-        # Im Tie-Break: Punktzähler erhöhen
-        if new_state.in_tiebreak:
-            new_state.tiebreak_total_points += 1
+        if info["game_winner"]:
+            current_game["w"] = "A" if info["game_winner"] == 1 else "B"
+            duration = info["duration"]
+            if duration is not None and duration <= MAX_GAME_DURATION_SECONDS:
+                current_game["d"] = duration
+            set_bucket(current_set)["games"].append(current_game)
+            current_game = None
 
-        # History-Eintrag hinzufügen
-        new_state.history.append(action)
+    if current_game is not None:
+        # Unvollendetes Game (Match manuell beendet)
+        set_bucket(current_set)["games"].append(current_game)
 
-        # Tie-Break Logik
-        if new_state.in_tiebreak:
-            tiebreak_winner = game_logic.check_tiebreak_won(
-                new_state.player1_points,
-                new_state.player2_points,
-                new_state.game_mode
-            )
+    return state, {"sets": sets}
 
-            if tiebreak_winner:
-                # Tie-Break gewonnen = Satz gewonnen
-                logger.info(f"Tie-Break gewonnen beim Replay: Team {tiebreak_winner}")
+def build_point_history(match: Dict) -> Dict:
+    """Punkteverlauf eines (laufenden oder gespeicherten) Matches als Dict"""
+    entries = [e for e in match.get("history", []) if _entry_team(e)]
+    args = dict(
+        player1_name=match.get("player1_name", "Team A"),
+        player2_name=match.get("player2_name", "Team B"),
+        game_mode=match.get("game_mode", "mit_vorteil_tiebreak"),
+        sets_to_win=match.get("sets_to_win", 2),
+    )
+    if not entries:
+        return {"sets": []}
 
-                # Satz-Historie mit Tie-Break speichern
-                mode = game_logic.game_mode_manager.get_mode(new_state.game_mode)
-                if mode:
-                    tiebreak_at = mode["rules"].get("tiebreak_at_games", [6, 6])
-                else:
-                    tiebreak_at = [6, 6]
+    if all(e.get("server") in (1, 2) for e in entries):
+        return replay_history(entries, **args)[1]
 
-                if tiebreak_winner == 1:
-                    new_state.set_history.append([tiebreak_at[0] + 1, tiebreak_at[1]])
-                    new_state.player1_sets += 1
-                else:
-                    new_state.set_history.append([tiebreak_at[0], tiebreak_at[1] + 1])
-                    new_state.player2_sets += 1
+    # Ältere Matches ohne gespeicherten Aufschläger: aus dem End-Aufschläger
+    # zurückrechnen. Geht nur ohne Tie-Break (danach hing der Aufschlag früher
+    # vom Tie-Break-Sieger ab) - sonst bleibt der Aufschläger unbekannt.
+    state, history = replay_history(entries, initial_server=1,
+                                    legacy_tiebreak_serve=True, **args)
+    had_tiebreak = any(g["tb"] for s in history["sets"] for g in s["games"])
+    final_server = match.get("server")
+    if had_tiebreak or final_server not in (1, 2):
+        return replay_history(entries, servers_known=False,
+                              legacy_tiebreak_serve=True, **args)[1]
+    if state.server == final_server:
+        return history
+    return replay_history(entries, initial_server=2,
+                          legacy_tiebreak_serve=True, **args)[1]
 
-                # Tie-Break beenden und zurücksetzen
-                new_state.in_tiebreak = False
-                new_state.tiebreak_total_points = 0
-                new_state.player1_games = 0
-                new_state.player2_games = 0
-                new_state.player1_points = 0
-                new_state.player2_points = 0
+def undo_point(state: MatchState) -> MatchState:
+    """
+    Macht den letzten Punkt rückgängig.
 
-                # Aufschlag wechselt zum anderen Team für den nächsten Satz
-                new_state.server = 2 if tiebreak_winner == 1 else 1
+    Der State wird aus der verbleibenden History neu aufgebaut - mit denselben
+    Regeln wie beim Zählen, inkl. Aufschläger, Game-Dauern und Tie-Break. Auch
+    über Game-/Satz-/Match-Grenzen hinweg (ein bereits gespeichertes Match wird
+    wieder aus der Historie entfernt).
+    """
+    with match_lock:
+        if len(state.history) == 0:
+            logger.warning("Keine History zum Undo vorhanden")
+            return state
 
-                # Match gewonnen?
-                match_winner = game_logic.check_match_won(
-                    new_state.player1_sets,
-                    new_state.player2_sets,
-                    new_state.sets_to_win
-                )
+        was_finished = state.match_finished
+        remaining = state.history[:-1]
+        removed = state.history[-1]
+        logger.info(f"Undo: {removed.get('action')}")
 
-                if match_winner:
-                    new_state.match_finished = True
-                    new_state.winner = player1_name if match_winner == 1 else player2_name
-            else:
-                # Tie-Break läuft weiter - Aufschlagwechsel nach Tie-Break Regeln
-                new_state.server = game_logic.get_tiebreak_server(
-                    new_state.tiebreak_total_points,
-                    new_state.tiebreak_server_at_start
-                )
-        else:
-            # Normales Spiel (kein Tie-Break)
-            game_winner = game_logic.check_game_won(
-                new_state.player1_points,
-                new_state.player2_points,
-                new_state.game_mode
-            )
+        first_server = next(
+            (e["server"] for e in remaining if e.get("server") in (1, 2)),
+            removed.get("server", 1))
+        new_state, _ = replay_history(
+            remaining,
+            player1_name=state.player1_name,
+            player2_name=state.player2_name,
+            game_mode=state.game_mode,
+            sets_to_win=state.sets_to_win,
+            initial_server=first_server,
+            match_id=state.match_id,
+        )
+        # Vor dem entfernten Punkt schlug genau dieses Team auf
+        if removed.get("server") in (1, 2):
+            _set_server(new_state, removed["server"])
+        if remaining and state.match_start_time:
+            new_state.match_start_time = state.match_start_time
 
-            if game_winner:
-                if game_winner == 1:
-                    new_state.player1_games += 1
-                else:
-                    new_state.player2_games += 1
+        if was_finished and state.match_id:
+            state_manager.remove_match(state.match_id)
 
-                # Punkte zurücksetzen
-                new_state.player1_points = 0
-                new_state.player2_points = 0
+        state_manager.save_state(new_state)
 
-                # Aufschlagwechsel
-                new_state.server = 2 if new_state.server == 1 else 1
+        tiebreak_status = "im Tiebreak" if new_state.in_tiebreak else "normales Spiel"
+        logger.info(f"Undo abgeschlossen ({tiebreak_status}): Score jetzt {new_state.player1_points}-{new_state.player2_points}, Games {new_state.player1_games}-{new_state.player2_games}, Sets {new_state.player1_sets}-{new_state.player2_sets}")
 
-                # Prüfe ob Satz gewonnen
-                set_winner = game_logic.check_set_won(
-                    new_state.player1_games,
-                    new_state.player2_games,
-                    new_state.game_mode
-                )
-
-                if set_winner:
-                    # Satz-Historie speichern
-                    new_state.set_history.append([new_state.player1_games, new_state.player2_games])
-
-                    if set_winner == 1:
-                        new_state.player1_sets += 1
-                    else:
-                        new_state.player2_sets += 1
-
-                    # Games zurücksetzen
-                    new_state.player1_games = 0
-                    new_state.player2_games = 0
-
-                    # Prüfe ob Match gewonnen
-                    match_winner = game_logic.check_match_won(
-                        new_state.player1_sets,
-                        new_state.player2_sets,
-                        new_state.sets_to_win
-                    )
-
-                    if match_winner:
-                        new_state.match_finished = True
-                        new_state.winner = player1_name if match_winner == 1 else player2_name
-
-    # Status speichern
-    state_manager.save_state(new_state)
-
-    tiebreak_status = "im Tiebreak" if new_state.in_tiebreak else "normales Spiel"
-    logger.info(f"Undo abgeschlossen ({tiebreak_status}): Score jetzt {new_state.player1_points}-{new_state.player2_points}, Games {new_state.player1_games}-{new_state.player2_games}, Sets {new_state.player1_sets}-{new_state.player2_sets}")
-
-    return new_state
+        return new_state
 
 def add_point(state: MatchState, player: int) -> MatchState:
     """
     Fügt einem Spieler einen Punkt hinzu und aktualisiert den Status
     player: 1 oder 2
     """
-    if state.match_finished:
+    with match_lock:
+        if state.match_finished:
+            return state
+
+        now = datetime.now()
+        server_before = state.server
+        info = _score_point(state, player, now)
+
+        state.history.append({
+            "timestamp": now.isoformat(),
+            "action": f"Punkt für Team {player}",
+            "team": player,
+            "server": server_before,
+            "tb": info["tb"],
+            "score": f"{state.player1_points}-{state.player2_points}"
+        })
+
+        if info["game_winner"]:
+            logger.info(f"{'Tie-Break' if info['tb'] else 'Spiel'} gewonnen: Team {info['game_winner']}")
+        if state.match_finished:
+            logger.info(f"Match gewonnen: {state.winner}")
+            state_manager.save_match_to_history(state)
+
+        state_manager.save_state(state)
         return state
 
-    # Match starten, falls noch nicht geschehen
-    if not state.match_started:
-        state.match_started = True
-        state.match_start_time = datetime.now().isoformat()
-        state.current_game_start_time = datetime.now().isoformat()
-
-    # Game-Timer starten beim ersten Punkt
-    if state.current_game_start_time is None:
-        state.current_game_start_time = datetime.now().isoformat()
-
-    # Prüfen ob Tie-Break gestartet werden muss
-    if not state.in_tiebreak and game_logic.check_tiebreak_needed(state.player1_games, state.player2_games, state.game_mode):
-        state.in_tiebreak = True
-        state.tiebreak_server_at_start = state.server
-        state.tiebreak_total_points = 0
-        state.player1_points = 0
-        state.player2_points = 0
-        logger.info(f"Tie-Break gestartet! Team {state.tiebreak_server_at_start} beginnt.")
-
-    # Punkt hinzufügen
-    if player == 1:
-        state.player1_points += 1
-    else:
-        state.player2_points += 1
-
-    # Im Tie-Break: Punktzähler erhöhen
+def _set_server(state: MatchState, server: int):
+    """Setzt den Aufschläger manuell (gleiches Verhalten wie in der App)."""
+    if state.match_finished or server == state.server:
+        return
+    # Im Tie-Break wird der Aufschläger bei jedem Punkt aus dem Start-
+    # Aufschläger berechnet - der muss mitwechseln, sonst macht der nächste
+    # Punkt die Korrektur wieder rückgängig.
     if state.in_tiebreak:
-        state.tiebreak_total_points += 1
-
-    # History-Eintrag
-    state.history.append({
-        "timestamp": datetime.now().isoformat(),
-        "action": f"Punkt für {'Team ' + str(player)}",
-        "score": f"{state.player1_points}-{state.player2_points}"
-    })
-
-    # Tie-Break Logik
-    if state.in_tiebreak:
-        tiebreak_winner = game_logic.check_tiebreak_won(state.player1_points, state.player2_points, state.game_mode)
-        if tiebreak_winner:
-            # Tie-Break gewonnen = Satz gewonnen
-            logger.info(f"Tie-Break gewonnen: Team {tiebreak_winner} ({state.player1_points}:{state.player2_points})")
-
-            # Berechne Game-Dauer
-            if state.current_game_start_time:
-                try:
-                    game_start = datetime.fromisoformat(state.current_game_start_time)
-                    game_end = datetime.now()
-                    game_duration = int((game_end - game_start).total_seconds())
-                    state.game_durations.append(game_duration)
-                    logger.info(f"Tie-Break Dauer: {game_duration}s ({game_duration // 60}m {game_duration % 60}s)")
-                except:
-                    pass
-
-            # Satz-Historie mit Tie-Break speichern
-            # Hole die tiebreak_at_games Werte aus den Spielregeln
-            mode = game_logic.game_mode_manager.get_mode(state.game_mode)
-            if mode:
-                tiebreak_at = mode["rules"].get("tiebreak_at_games", [6, 6])
-            else:
-                tiebreak_at = [6, 6]
-
-            if tiebreak_winner == 1:
-                state.set_history.append([tiebreak_at[0] + 1, tiebreak_at[1]])
-                state.player1_sets += 1
-            else:
-                state.set_history.append([tiebreak_at[0], tiebreak_at[1] + 1])
-                state.player2_sets += 1
-
-            # Tie-Break beenden und zurücksetzen
-            state.in_tiebreak = False
-            state.tiebreak_total_points = 0
-            state.player1_games = 0
-            state.player2_games = 0
-            state.player1_points = 0
-            state.player2_points = 0
-
-            # Aufschlag wechselt zum anderen Team für den nächsten Satz
-            state.server = 2 if tiebreak_winner == 1 else 1
-
-            # Reset Game-Timer
-            state.current_game_start_time = datetime.now().isoformat()
-
-            logger.info(f"Satz gewonnen durch Tie-Break: Team {tiebreak_winner}")
-
-            # Match gewonnen?
-            match_winner = game_logic.check_match_won(state.player1_sets, state.player2_sets, state.sets_to_win)
-            if match_winner:
-                state.match_finished = True
-                state.match_end_time = datetime.now().isoformat()
-                state.winner = state.player1_name if match_winner == 1 else state.player2_name
-
-                # Berechne Match-Dauer
-                if state.match_start_time:
-                    try:
-                        start = datetime.fromisoformat(state.match_start_time)
-                        end = datetime.fromisoformat(state.match_end_time)
-                        duration_seconds = int((end - start).total_seconds())
-                        logger.info(f"Match-Dauer: {duration_seconds}s ({duration_seconds // 60} Minuten)")
-                    except:
-                        pass
-
-                logger.info(f"Match gewonnen: {state.winner}")
-
-                # Match in Historie speichern
-                state_manager.save_match_to_history(state)
-        else:
-            # Tie-Break läuft weiter - Aufschlagwechsel nach Tie-Break Regeln
-            state.server = game_logic.get_tiebreak_server(state.tiebreak_total_points, state.tiebreak_server_at_start)
-
-    else:
-        # Normales Spiel (kein Tie-Break)
-        game_winner = game_logic.check_game_won(state.player1_points, state.player2_points, state.game_mode)
-        if game_winner:
-            # Berechne Game-Dauer
-            if state.current_game_start_time:
-                try:
-                    game_start = datetime.fromisoformat(state.current_game_start_time)
-                    game_end = datetime.now()
-                    game_duration = int((game_end - game_start).total_seconds())
-                    state.game_durations.append(game_duration)
-                    logger.info(f"Game-Dauer: {game_duration}s ({game_duration // 60}m {game_duration % 60}s)")
-                except:
-                    pass
-
-            # Reset Game-Timer
-            state.current_game_start_time = datetime.now().isoformat()
-
-            if game_winner == 1:
-                state.player1_games += 1
-            else:
-                state.player2_games += 1
-
-            # Punkte zurücksetzen
-            state.player1_points = 0
-            state.player2_points = 0
-
-            # Aufschlagwechsel
-            state.server = 2 if state.server == 1 else 1
-
-            logger.info(f"Spiel gewonnen: Team {game_winner}")
-
-            # Satz gewonnen?
-            set_winner = game_logic.check_set_won(state.player1_games, state.player2_games, state.game_mode)
-            if set_winner:
-                # Satz-Historie speichern
-                state.set_history.append([state.player1_games, state.player2_games])
-
-                if set_winner == 1:
-                    state.player1_sets += 1
-                else:
-                    state.player2_sets += 1
-
-                # Games zurücksetzen
-                state.player1_games = 0
-                state.player2_games = 0
-
-                logger.info(f"Satz gewonnen: Team {set_winner}")
-
-                # Match gewonnen?
-                match_winner = game_logic.check_match_won(state.player1_sets, state.player2_sets, state.sets_to_win)
-                if match_winner:
-                    state.match_finished = True
-                    state.match_end_time = datetime.now().isoformat()
-                    state.winner = state.player1_name if match_winner == 1 else state.player2_name
-
-                    # Berechne Match-Dauer
-                    if state.match_start_time:
-                        try:
-                            start = datetime.fromisoformat(state.match_start_time)
-                            end = datetime.fromisoformat(state.match_end_time)
-                            duration_seconds = int((end - start).total_seconds())
-                            logger.info(f"Match-Dauer: {duration_seconds}s ({duration_seconds // 60} Minuten)")
-                        except:
-                            pass
-
-                    logger.info(f"Match gewonnen: {state.winner}")
-
-                    # Match in Historie speichern
-                    state_manager.save_match_to_history(state)
-
-    # Status speichern
-    state_manager.save_state(state)
-
-    return state
+        state.tiebreak_server_at_start = 2 if state.tiebreak_server_at_start == 1 else 1
+    state.server = server
 
 def get_state_dict(state: MatchState) -> Dict:
-    """Erstellt State-Dict mit formatierten Punkteanzeigen für Frontend"""
+    """State für Web-Frontend, E-Paper-Display und App.
+
+    Die flachen Felder (team_a_name, games_a, ...) nutzen Web-UI und Display.
+    Die App liest die verschachtelten Felder (team_a, sets, current_game,
+    sets_won, mode, match_completed, match_winner) - nur dort stecken das
+    Match-Format (Best-of) und die Sätze so, wie die App sie erwartet.
+    """
     # Im Tie-Break: Punkte direkt anzeigen, sonst normale Anzeige
     if state.in_tiebreak:
         score_p1 = str(state.player1_points)
@@ -1591,6 +1669,24 @@ def get_state_dict(state: MatchState) -> Dict:
             state.game_mode
         )
 
+    winner_side = None
+    if state.match_finished:
+        if state.winner_team in (1, 2):
+            winner_side = "a" if state.winner_team == 1 else "b"
+        elif state.winner == state.player1_name:
+            winner_side = "a"
+        elif state.winner == state.player2_name:
+            winner_side = "b"
+
+    # Abgeschlossene Sätze + der laufende Satz (bei manuell beendetem Match
+    # steckt der Teilsatz schon in set_history)
+    sets = [{"score_a": s[0], "score_b": s[1]} for s in state.set_history]
+    if not state.match_finished and (state.player1_games > 0 or state.player2_games > 0):
+        sets.append({"score_a": state.player1_games, "score_b": state.player2_games})
+
+    serve = "a" if state.server == 1 else "b"
+    current_set = state.player1_sets + state.player2_sets + 1
+
     return {
         "team_a_name": state.player1_name,
         "team_b_name": state.player2_name,
@@ -1598,18 +1694,38 @@ def get_state_dict(state: MatchState) -> Dict:
         "sets_b": state.player2_sets,
         "games_a": state.player1_games,
         "games_b": state.player2_games,
-        "points_a": state.player1_points,  # Roh-Punkte für Kompatibilität
-        "points_b": state.player2_points,  # Roh-Punkte für Kompatibilität
+        "points_a": state.player1_points,  # Roh-Punkte (zählen bei Einstand weiter: 4:3, 5:4 ...)
+        "points_b": state.player2_points,
         "points_a_display": score_p1,  # Formatiert (0, 15, 30, 40, AD) oder Tie-Break Punkte
-        "points_b_display": score_p2,  # Formatiert (0, 15, 30, 40, AD) oder Tie-Break Punkte
-        "serve": "a" if state.server == 1 else "b",
-        "current_set": state.player1_sets + state.player2_sets + 1,
+        "points_b_display": score_p2,
+        "serve": serve,
+        "current_set": current_set,
         "set_history": state.set_history,
         "match_over": state.match_finished,
-        "winner": "a" if state.winner == state.player1_name else "b" if state.match_finished else None,
+        "winner": winner_side,
         "best_of": state.sets_to_win * 2 - 1,
         "game_mode": state.game_mode,
-        "in_tiebreak": state.in_tiebreak  # Tie-Break Status für Frontend
+        "in_tiebreak": state.in_tiebreak,  # Tie-Break Status für Frontend
+        "match_id": state.match_id,
+
+        # ---- App-Format ----
+        "team_a": state.player1_name,
+        "team_b": state.player2_name,
+        "sets": sets,
+        "current_game": {
+            "points": {"A": state.player1_points, "B": state.player2_points},
+            "server": serve.upper(),
+            "tiebreak": state.in_tiebreak,
+            "display_points_a": score_p1,
+            "display_points_b": score_p2,
+        },
+        "sets_won": {"A": state.player1_sets, "B": state.player2_sets},
+        "mode": f"{state.game_mode}|{_match_format(state.sets_to_win)}",
+        "match_completed": state.match_finished,
+        "match_winner": winner_side.upper() if winner_side else None,
+        "game_durations": state.game_durations,
+        "set_durations": state.set_durations,
+        "current_game_start_time": state.current_game_start_time,
     }
 
 # ============================================================================
@@ -1759,9 +1875,13 @@ async def reset_match():
     """Setzt Match zurück"""
     global current_match
     
+    # Spielmodus und Best-of bleiben erhalten (die App zeigt sie weiter an)
     current_match = MatchState(
         player1_name=current_match.player1_name,
-        player2_name=current_match.player2_name
+        player2_name=current_match.player2_name,
+        game_mode=current_match.game_mode,
+        sets_to_win=current_match.sets_to_win,
+        server=current_match.server  # Aufschläger bleibt (wie in der App)
     )
     state_manager.save_state(current_match)
     
@@ -1815,7 +1935,7 @@ async def set_server(player: int):
     if player not in [1, 2]:
         raise HTTPException(status_code=400, detail="Player muss 1 oder 2 sein")
     
-    current_match.server = player
+    _set_server(current_match, player)
     state_manager.save_state(current_match)
     
     return {"status": "success"}
@@ -1833,7 +1953,7 @@ async def set_server_json(request: Request):
         
         # Wenn kein team angegeben, toggle
         if not team:
-            current_match.server = 2 if current_match.server == 1 else 1
+            _set_server(current_match, 2 if current_match.server == 1 else 1)
         else:
             if team == "team_a" or team == "a":
                 team = 1
@@ -1843,7 +1963,7 @@ async def set_server_json(request: Request):
             if team not in [1, 2]:
                 raise HTTPException(status_code=400, detail=f"Team muss 1 oder 2 sein (erhalten: {body})")
             
-            current_match.server = team
+            _set_server(current_match, team)
         
         state_manager.save_state(current_match)
         
@@ -1971,13 +2091,16 @@ async def new_match():
     player2_name = current_match.player2_name
     game_mode = current_match.game_mode
     sets_to_win = current_match.sets_to_win
+    # Wie in der App: im nächsten Match beginnt das andere Team
+    next_server = 2 if current_match.server == 1 else 1
 
     # Neues Match erstellen
     current_match = MatchState(
         player1_name=player1_name,
         player2_name=player2_name,
         game_mode=game_mode,
-        sets_to_win=sets_to_win
+        sets_to_win=sets_to_win,
+        server=next_server
     )
     state_manager.save_state(current_match)
 
@@ -1994,9 +2117,8 @@ async def save_running_match_to_history():
     Speichert ein laufendes Match in die Historie und beendet es.
 
     Ermittelt den Gewinner anhand der aktuellen Punktestände:
-    - Wenn ein Spieler mehr Sätze gewonnen hat → Gewinner
-    - Bei gleicher Satzanzahl: Wer mehr Games hat → Gewinner
-    - Bei gleicher Game-Anzahl: Wer mehr Punkte im aktuellen Game hat → Gewinner
+    - Wer mehr Sätze gewonnen hat → Gewinner
+    - Bei gleicher Satzanzahl: Wer insgesamt mehr Games gewonnen hat → Gewinner
     - Ansonsten: Unentschieden
     """
     global current_match
@@ -2021,41 +2143,34 @@ async def save_running_match_to_history():
     winner = None
     winner_name = None
 
-    # 1. Vergleiche Sätze
-    if current_match.player1_sets > current_match.player2_sets:
-        winner = 1
-        winner_name = current_match.player1_name
-    elif current_match.player2_sets > current_match.player1_sets:
-        winner = 2
-        winner_name = current_match.player2_name
-    # 2. Bei gleichen Sätzen: Vergleiche Games
-    elif current_match.player1_games > current_match.player2_games:
-        winner = 1
-        winner_name = current_match.player1_name
-    elif current_match.player2_games > current_match.player1_games:
-        winner = 2
-        winner_name = current_match.player2_name
-    # 3. Bei gleichen Games: Vergleiche Punkte im aktuellen Game
-    elif current_match.player1_points > current_match.player2_points:
-        winner = 1
-        winner_name = current_match.player1_name
-    elif current_match.player2_points > current_match.player1_points:
-        winner = 2
-        winner_name = current_match.player2_name
+    # Wie in der App: erst Sätze, bei Gleichstand alle gewonnenen Games
+    # (abgeschlossene Sätze + laufender Satz), sonst Unentschieden.
+    games_1 = sum(s[0] for s in current_match.set_history) + current_match.player1_games
+    games_2 = sum(s[1] for s in current_match.set_history) + current_match.player2_games
+    if current_match.player1_sets != current_match.player2_sets:
+        winner = 1 if current_match.player1_sets > current_match.player2_sets else 2
+    elif games_1 != games_2:
+        winner = 1 if games_1 > games_2 else 2
+
+    if winner:
+        winner_name = current_match.player1_name if winner == 1 else current_match.player2_name
     else:
-        # Unentschieden
         winner_name = "Unentschieden"
 
-    # Speichere aktuellen Satzstand in set_history falls noch nicht vorhanden
-    # (bei laufendem Satz)
+    # Laufenden Satz in die Satz-Historie übernehmen; ganz ohne Game bleibt
+    # (wie in der App) ein 0:0-Satz stehen.
     if current_match.player1_games > 0 or current_match.player2_games > 0:
-        # Füge aktuellen Satzstand hinzu
         current_match.set_history.append([current_match.player1_games, current_match.player2_games])
+    elif not current_match.set_history:
+        current_match.set_history.append([0, 0])
 
     # Match als beendet markieren
     current_match.match_finished = True
     current_match.match_end_time = datetime.now().isoformat()
     current_match.winner = winner_name
+    current_match.winner_team = winner
+    if not current_match.match_id:
+        current_match.match_id = new_match_id()
 
     # In Historie speichern
     state_manager.save_match_to_history(current_match)
@@ -2116,26 +2231,41 @@ async def update_match_duration(request: Request):
         logger.error(f"Fehler bei /api/match/duration: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+def _game_duration_list(matches: List[Dict]) -> List[int]:
+    """Alle aufgezeichneten Game-Dauern (Sekunden) aus den Punkteverläufen"""
+    durations = []
+    for match in matches:
+        for set_data in (match.get("point_history") or {}).get("sets", []):
+            for game in set_data.get("games", []):
+                if game.get("w") and isinstance(game.get("d"), int):
+                    durations.append(game["d"])
+    return durations
+
 @app.get("/api/game-stats")
 async def get_game_stats():
-    """Gibt detaillierte Game-by-Game Statistiken zurück"""
-    if not current_match.game_durations:
+    """Game-Dauern über alle gespeicherten Matches + das laufende Match"""
+    durations = _game_duration_list(state_manager.load_history_records())
+    if not current_match.match_finished:
+        durations += [d for d in current_match.game_durations
+                      if d <= MAX_GAME_DURATION_SECONDS]
+
+    if not durations:
         return {"games": []}
-    
-    games = []
-    for i, duration in enumerate(current_match.game_durations):
-        games.append({
-            "game_number": i + 1,
-            "duration_seconds": duration,
-            "duration_formatted": f"{duration // 60}m {duration % 60}s"
-        })
-    
+
     return {
-        "total_games": len(current_match.game_durations),
-        "games": games,
-        "average_game_duration": sum(current_match.game_durations) // len(current_match.game_durations) if current_match.game_durations else 0,
-        "longest_game": max(current_match.game_durations) if current_match.game_durations else 0,
-        "shortest_game": min(current_match.game_durations) if current_match.game_durations else 0
+        "total_games": len(durations),
+        "games": [
+            {
+                "game_number": i + 1,
+                "game_index": i,
+                "duration_seconds": duration,
+                "duration_formatted": f"{duration // 60}m {duration % 60}s"
+            }
+            for i, duration in enumerate(durations)
+        ],
+        "average_game_duration": sum(durations) // len(durations),
+        "longest_game": max(durations),
+        "shortest_game": min(durations)
     }
 
 # ============================================================================
@@ -2226,7 +2356,7 @@ async def update_webcam_settings(settings: WebcamSettings):
 @app.post("/api/webcam/roi")
 async def save_webcam_roi(data: dict):
     """Speichert ROI (Region of Interest) für Webcam"""
-    roi_points = data.get('roi', [])
+    roi_points = data.get('roi') or data.get('points') or []
     
     # Lade aktuelle Einstellungen
     settings = webcam_settings_manager.settings
@@ -2260,167 +2390,107 @@ async def stats_page(request: Request):
 
 @app.get("/api/history")
 async def get_history():
-    """Gibt Match-Historie zurück (iOS-optimiert: ohne Point-Historie)"""
+    """
+    Match-Historie, älteste zuerst.
+
+    - "history": Format der App (CompletedMatch) inkl. "point_history"
+    - "matches": bisheriges Format für das Web-Frontend (ohne Punkt-Rohdaten)
+    """
     try:
-        history = []
-        if state_manager.history_file.exists():
-            with open(state_manager.history_file, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-        
-        # iOS-OPTIMIERUNG: Entferne riesige history-Arrays
-        for match in history:
-            if 'history' in match:
-                history_length = len(match.get('history', []))
-                del match['history']
-                logger.info(f"📱 Entfernt history-Array mit {history_length} Einträgen")
-        
-        # Füge IDs hinzu falls nicht vorhanden
-        for i, match in enumerate(history):
-            if 'id' not in match:
-                match['id'] = f"match_{i}_{match.get('match_end_time', '')}"
-        
-        logger.info(f"📱 Sende {len(history)} Matches an iOS (ohne Point-Historie)")
-        return {"matches": history}
+        records = state_manager.load_history_records()
+        matches = [
+            {k: v for k, v in match.items() if k not in ("history", "point_history")}
+            for match in records
+        ]
+        return {
+            "history": [app_history_record(match) for match in records],
+            "matches": matches,
+        }
     except Exception as e:
         logger.error(f"Fehler beim Laden der Historie: {e}")
-        return {"matches": []}
+        return {"history": [], "matches": []}
 
-@app.delete("/api/history/{match_id:path}")
-async def delete_match(match_id: str):
+def _find_history_match(history: List[Dict], raw_id: str) -> Optional[int]:
+    """Index des Matches zu einer ID, sonst None.
+
+    Kennt die stabile ID sowie die früheren, von Clients erzeugten Formate
+    "match_<index>_<endzeit>" und "match_<endzeit>" (Zuordnung über die Endzeit).
     """
-    Löscht ein Match aus der Historie (flexibles Matching)
+    from urllib.parse import unquote
+    candidates = {raw_id, unquote(raw_id)}
 
-    Unterstützt verschiedene ID-Formate:
-    - match_0_2026-01-27T20:32:53.116362
-    - match_0_2026-01-27T20%3A32%3A53.116362 (URL-encoded)
-    - Numerischer Index (0, 1, 2, ...)
-    """
-    try:
-        if not state_manager.history_file.exists():
-            raise HTTPException(status_code=404, detail="Keine Historie gefunden")
+    for i, match in enumerate(history):
+        if match.get("id") in candidates:
+            return i
 
-        with open(state_manager.history_file, 'r', encoding='utf-8') as f:
-            history = json.load(f)
-
-        if len(history) == 0:
-            raise HTTPException(status_code=404, detail="Historie ist leer")
-
-        # URL-Decode der match_id (für %3A → : etc.)
-        from urllib.parse import unquote
-        decoded_match_id = unquote(match_id)
-
-        logger.info(f"🔍 Versuche Match zu löschen:")
-        logger.info(f"   Original ID: '{match_id}'")
-        logger.info(f"   Decoded ID:  '{decoded_match_id}'")
-        logger.info(f"   Historie hat {len(history)} Matches")
-
-        # Strategie 1: Versuche numerischen Index
-        try:
-            index = int(match_id)
-            if 0 <= index < len(history):
-                deleted_match = history.pop(index)
-                logger.info(f"✅ Match gelöscht via Index {index}: {deleted_match.get('player1_name', 'Team A')} vs {deleted_match.get('player2_name', 'Team B')}")
-
-                with open(state_manager.history_file, 'w', encoding='utf-8') as f:
-                    json.dump(history, f, indent=2, ensure_ascii=False)
-
-                return {
-                    "status": "success",
-                    "message": f"Match {index} gelöscht",
-                    "deleted_match": deleted_match
-                }
-        except ValueError:
-            # Keine Nummer, weitermachen mit anderen Strategien
-            pass
-
-        # Strategie 2: Matche gegen generierte IDs oder explizite 'id' Felder
-        new_history = []
-        found = False
-        deleted_match = None
-
+    for candidate in candidates:
+        legacy = re.match(r"^match_(?:\d+_)?(.+)$", candidate)
+        if not legacy:
+            continue
+        stamp = legacy.group(1)
         for i, match in enumerate(history):
-            # Generiere ID wie iOS es macht
-            timestamp = match.get('match_end_time') or match.get('timestamp', '')
-            generated_id = f"match_{i}_{timestamp}"
+            if stamp in (match.get("match_end_time"), match.get("timestamp")):
+                return i
+    return None
 
-            # Hole explizite ID falls vorhanden
-            explicit_id = match.get('id', '')
+def _delete_history_match(match_id: str) -> Dict:
+    """Löscht ein Match. Idempotent: eine unbekannte ID ist kein Fehler, damit
+    in der App vorgemerkte Löschungen nicht endlos wiederholt werden."""
+    try:
+        with state_manager._history_lock:
+            history = state_manager.load_history_records()
+            index = _find_history_match(history, match_id)
+            if index is None:
+                logger.info(f"Match '{match_id}' nicht (mehr) in der Historie - nichts zu löschen")
+                return {"status": "success", "deleted": False, "remaining_matches": len(history)}
 
-            logger.debug(f"   Match {i}:")
-            logger.debug(f"      Generated ID: '{generated_id}'")
-            logger.debug(f"      Explicit ID:  '{explicit_id}'")
-            logger.debug(f"      Timestamp:    '{timestamp}'")
+            deleted = history.pop(index)
+            state_manager.save_history_records(history)
 
-            # Matche gegen verschiedene Varianten
-            if (decoded_match_id == generated_id or
-                decoded_match_id == explicit_id or
-                match_id == generated_id or
-                match_id == explicit_id or
-                # Fallback: Nur Timestamp-Teil matchen
-                timestamp in decoded_match_id):
-
-                found = True
-                deleted_match = match
-                logger.info(f"✅ Match gefunden via ID-Match!")
-                logger.info(f"   {match.get('player1_name', 'Team A')} vs {match.get('player2_name', 'Team B')}")
-                continue  # Überspringe dieses Match (= lösche es)
-
-            new_history.append(match)
-
-        if not found:
-            logger.warning(f"❌ Match nicht gefunden: '{decoded_match_id}'")
-            raise HTTPException(status_code=404, detail="Match nicht gefunden")
-
-        # Speichere aktualisierte Historie
-        with open(state_manager.history_file, 'w', encoding='utf-8') as f:
-            json.dump(new_history, f, indent=2, ensure_ascii=False)
-
-        logger.info(f"✅ Match erfolgreich gelöscht. Verbleibende Matches: {len(new_history)}")
-
+        logger.info(f"Match gelöscht: {deleted.get('team_a')} vs {deleted.get('team_b')} ({deleted.get('id')})")
         return {
             "status": "success",
             "message": "Match gelöscht",
-            "deleted_match": deleted_match,
-            "remaining_matches": len(new_history)
+            "deleted": True,
+            "remaining_matches": len(history)
         }
-
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"❌ Fehler beim Löschen: {e}")
+        logger.error(f"Fehler beim Löschen: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/history/delete")
+async def delete_match_post(request: Request):
+    """Löscht ein Match per JSON-Body {"id": "..."} (Fallback der App)"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    match_id = body.get("id") if isinstance(body, dict) else None
+    if not match_id or not isinstance(match_id, str):
+        raise HTTPException(status_code=400, detail="id erforderlich")
+    return _delete_history_match(match_id)
+
+@app.delete("/api/history/{match_id:path}")
+async def delete_match(match_id: str):
+    """Löscht ein Match aus der Historie (idempotent)"""
+    return _delete_history_match(match_id)
 
 @app.delete("/api/history")
 async def clear_history():
-    """Löscht KOMPLETTE Match-Historie (alle Matches)"""
+    """Löscht KOMPLETTE Match-Historie (alle Matches, idempotent)"""
     try:
-        if not state_manager.history_file.exists():
-            logger.warning("Historie-Datei existiert nicht")
-            return {
-                "status": "success",
-                "message": "Historie war bereits leer",
-                "deleted_count": 0
-            }
+        with state_manager._history_lock:
+            match_count = len(state_manager.load_history_records())
+            state_manager.save_history_records([])
 
-        # Zähle Matches vor dem Löschen
-        with open(state_manager.history_file, 'r', encoding='utf-8') as f:
-            history = json.load(f)
-
-        match_count = len(history)
-
-        # Lösche Historie-Datei
-        state_manager.history_file.unlink()
-
-        logger.info(f"✅ Komplette Match-Historie gelöscht ({match_count} Matches)")
-
+        logger.info(f"Komplette Match-Historie gelöscht ({match_count} Matches)")
         return {
             "status": "success",
             "message": f"Alle {match_count} Matches gelöscht",
             "deleted_count": match_count
         }
-
     except Exception as e:
-        logger.error(f"❌ Fehler beim Löschen der Historie: {e}")
+        logger.error(f"Fehler beim Löschen der Historie: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
@@ -2776,6 +2846,79 @@ async def poweroff():
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
+# AUTO-UPDATE & NEUSTART
+# ============================================================================
+
+# Solange der letzte Punkt jünger ist, gilt ein Match als laufend und
+# ein Update wartet (der Neustart dauert ca. 30 Sekunden)
+UPDATE_MATCH_IDLE_SECONDS = 20 * 60
+
+def match_in_progress() -> bool:
+    state = current_match
+    if not state.match_started or state.match_finished or not state.history:
+        return False
+    last_point = _parse_time(state.history[-1].get("timestamp"))
+    if last_point is None:
+        return True
+    return (datetime.now() - last_point).total_seconds() < UPDATE_MATCH_IDLE_SECONDS
+
+def restart_server(delay: float = 1.5):
+    """Beendet den Server-Prozess; systemd (Restart=always) startet ihn neu."""
+    def _terminate():
+        logger.info("Server wird neu gestartet...")
+        os.kill(os.getpid(), signal.SIGTERM)
+        # Offene Streams (Webcam) können das saubere Beenden blockieren
+        time.sleep(15)
+        os._exit(0)
+    timer = threading.Timer(delay, _terminate)
+    timer.daemon = True
+    timer.start()
+
+auto_updater = updater.AutoUpdater(is_busy=match_in_progress, restart=restart_server)
+
+@app.get("/api/update/status")
+async def get_update_status():
+    """Installierter Stand, letzter Check und Auto-Update-Einstellungen"""
+    return await asyncio.to_thread(auto_updater.status)
+
+@app.post("/api/update/check")
+async def trigger_update_check(request: Request):
+    """Stößt eine Prüfung an. Body (optional): {"apply": true} installiert sofort,
+    auch während eines laufenden Matches."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    apply = bool(isinstance(body, dict) and body.get("apply"))
+    auto_updater.request(apply=apply, force=apply)
+    return {"status": "success", "apply": apply}
+
+@app.post("/api/update/settings")
+async def update_update_settings(request: Request):
+    """Body: {"enabled": bool, "interval_minutes": int}"""
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON-Objekt erwartet")
+    changes = {}
+    if "enabled" in body:
+        changes["enabled"] = bool(body["enabled"])
+    if "interval_minutes" in body:
+        try:
+            changes["interval_minutes"] = int(body["interval_minutes"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="interval_minutes muss eine Zahl sein")
+    updater.save_settings(changes)
+    return await asyncio.to_thread(auto_updater.status)
+
+@app.post("/api/system/restart")
+async def system_restart():
+    """Startet den Server-Dienst neu (nur als systemd-Dienst möglich)"""
+    if not updater.running_under_systemd():
+        raise HTTPException(status_code=409, detail="Neustart nur als systemd-Dienst möglich")
+    restart_server()
+    return {"status": "success", "message": "Server wird neu gestartet..."}
+
+# ============================================================================
 # STARTUP & SHUTDOWN
 # ============================================================================
 
@@ -2785,7 +2928,9 @@ async def startup_event():
     logger.info("=" * 60)
     logger.info("Tennis Scoring System startet...")
     logger.info("=" * 60)
-    
+
+    auto_updater.start()
+
     # Webcam starten, falls aktiviert
     if webcam_settings_manager.settings.enabled:
         gesture_recognizer.start()

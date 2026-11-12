@@ -196,6 +196,26 @@ sudo ./install_complete.sh
 
 ## 🔄 Update
 
+### Automatic update
+
+The server updates itself. While the Pi is connected via **Ethernet cable**, it checks GitHub (`main` branch) 90 seconds after boot and then every 30 minutes. When a newer commit exists it:
+
+1. downloads it (`git fetch`) – DNS problems caused by the access point setup are worked around automatically,
+2. keeps your data (`data/`, `game_modes/`) and replaces the code,
+3. restarts the server; new Python packages from `requirements.txt` are installed during the restart.
+
+Safety nets:
+
+- No automatic restart while a match is running (last point less than 20 minutes ago) – the update is installed afterwards.
+- If the new code has a syntax error or fails to start twice, the previous version is restored and that commit is skipped.
+- Changes to `install_complete.sh` (system packages, services) are **not** applied automatically – the admin panel shows a hint, then run the manual update below once.
+
+Status, a "check now" button and the on/off switch are in the **admin panel → Software Update** (`/admin`). API: `GET /api/update/status`, `POST /api/update/check` (`{"apply": true}` installs immediately), `POST /api/update/settings` (`{"enabled": false, "interval_minutes": 60}`). On the command line: `python3 updater.py --check` / `--apply`.
+
+> The auto-updater only installs when the server runs as systemd service (i.e. on the Pi). Installations older than the auto-updater need **one** manual update to get it.
+
+### Manual update
+
 > 🌐 **LAN required:** Connect the Raspberry Pi via **Ethernet cable** and SSH into it before updating. The WiFi interface is used as an access point and has no internet access.
 
 ### Step 1 – Restore DNS resolution
@@ -413,6 +433,10 @@ All settings can be made either through the user interface or directly in the JS
 | POST | `/api/language` | Set language |
 | GET | `/api/translations` | Get all translations |
 | POST | `/api/system/shutdown` | Shutdown system |
+| POST | `/api/system/restart` | Restart the server service |
+| GET | `/api/update/status` | Auto-update status & installed version |
+| POST | `/api/update/check` | Check for updates (`{"apply": true}` installs now) |
+| POST | `/api/update/settings` | Enable/disable auto-update, set interval |
 
 ### Statistics
 
@@ -420,6 +444,16 @@ All settings can be made either through the user interface or directly in the JS
 |--------|----------|-------------|
 | GET | `/stats` | Statistics page |
 | GET | `/api/stats` | Get match statistics |
+| GET | `/api/state` | Current match state (web fields + app format: `sets`, `current_game`, `mode`, `match_completed`) |
+| GET | `/api/history` | Match history, oldest first. `history` = app format incl. `point_history`, `matches` = web format |
+| DELETE | `/api/history/{id}` | Delete one match (idempotent, unknown ids return 200) |
+| POST | `/api/history/delete` | Delete one match via JSON body `{"id": "..."}` |
+| DELETE | `/api/history` | Delete all matches (idempotent) |
+| GET | `/api/game-stats` | Game durations over all saved matches + the running match |
+
+Each saved match has a stable `id`. `point_history` lists every set in order:
+`{"sets":[{"games":[{"w":"A","s":"B","tb":false,"p":["A","B","A","A","A"],"u":0,"d":95}],"unknown_games":0}]}`
+(`w` game winner, `s` serving team, `tb` tie-break, `p` point winners, `d` seconds from the game's first to its last point).
 
 ## 🔧 Troubleshooting
 
