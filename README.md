@@ -83,7 +83,8 @@ Connect the **Waveshare 2.9″ E-Paper module** to the Raspberry Pi GPIO header 
 - **Best-of series**: Best-of-3 or Best-of-5 selectable
 - **Undo function** for scoring errors
 - **Match history**: Point-by-point tracking
-- **Statistics dashboard**: Detailed match analysis
+- **Statistics dashboard**: overview, game durations, hold/break-point rates, team ranking with form, head-to-head
+- **Match details**: momentum chart, key figures and every point of every game
 
 ### 📸 Camera & Gesture Recognition
 - **Live camera streaming** via web interface & iOS app
@@ -104,13 +105,15 @@ Connect the **Waveshare 2.9″ E-Paper module** to the Raspberry Pi GPIO header 
 ### 🔧 System Administration
 - **WiFi Access Point** configuration (SSID: `openPadel_<serial_number>`)
 - **System control**: Restart services, shutdown Pi
+- **Automatic software updates** from GitHub over LAN – also triggerable from the admin panel and the app
 - **Status monitoring**: Camera, system, services
 - **Web-based admin panel**
 
 ### 📱 User Interface
 - **Responsive design** – works on PC, tablet & smartphone
 - **Touch-optimized** – ideal for mobile devices
-- **Modern UI** with gradients & animations
+- **Same look as the app**: dark glass design, blue/purple team colours, light & dark mode follow the system
+- **Works offline**: no external fonts or icon CDNs – everything is served by the Pi
 - **Confetti effect** when match ends
 
 ## 🛠️ Installation
@@ -214,6 +217,14 @@ Status, a "check now" button and the on/off switch are in the **admin panel → 
 
 > The auto-updater only installs when the server runs as systemd service (i.e. on the Pi). Installations older than the auto-updater need **one** manual update to get it.
 
+### Update from the app
+
+The openPadel app can trigger the update too: connect to the scoreboard, open **Settings** on the scoreboard screen and scroll to **Server update**. There you see the installed version and the last check, can search for updates, install one and switch automatic updates on or off.
+
+- The phone only *triggers* the update. The Pi downloads it itself, so the **Ethernet cable must be plugged in** – otherwise the app shows "Server has no internet (LAN cable?)".
+- "Install" works immediately, even while a match is running (the app asks first). The score is kept; the server is unreachable for about a minute while it restarts.
+- Servers without the auto-updater show a hint to update manually once.
+
 ### Manual update
 
 > 🌐 **LAN required:** Connect the Raspberry Pi via **Ethernet cable** and SSH into it before updating. The WiFi interface is used as an access point and has no internet access.
@@ -301,6 +312,7 @@ After reboot **everything runs automatically**:
 ```
 openPadel/
 ├── main.py                 # Main application (FastAPI)
+├── updater.py             # Auto-updater (GitHub → Pi, rollback on failure)
 ├── display_worker.py      # E-Paper display worker
 ├── webcam.py              # Camera control (rpicam-vid)
 ├── shutdown_helper.py     # System shutdown
@@ -314,13 +326,18 @@ openPadel/
 │   ├── wifi_ap_settings.json
 │   └── language_settings.json
 ├── static/                # Static files
-│   └── js/i18n.js        # Internationalization (client)
+│   ├── app.css           # Design system (same tokens as the app)
+│   ├── logo.png          # Logo with transparent background
+│   ├── js/i18n.js        # Internationalization (client)
+│   └── js/stats.js       # Statistics page
 ├── templates/             # HTML templates
+│   ├── _head.html        # Shared <head> (styles, translations)
+│   ├── _nav.html         # Shared navigation & icons
 │   ├── index.html        # Scoreboard
 │   ├── webcam.html       # Camera & gestures
 │   ├── stats.html        # Statistics
 │   ├── admin.html        # Admin panel
-│   └── settings.html     # Settings
+│   └── settings.html     # New match (format, mode, team names, serve)
 └── translations/          # Language files
     ├── en.json           # English
     ├── de.json           # German
