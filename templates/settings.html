@@ -29,13 +29,11 @@
 
         <div class="card">
             <h2><svg class="icon"><use href="#i-ball"/></svg><span data-i18n="settings.game_mode">Spielmodus</span></h2>
-            <div class="field">
-                <label for="game-mode" data-i18n="settings.rules">Regelwerk</label>
-                <select id="game-mode" onchange="saveGameMode()">
-                    <option value="mit_vorteil_tiebreak">Mit Vorteil & Tiebreak</option>
-                </select>
-            </div>
-            <p class="muted small" id="game-mode-description"></p>
+            <div id="mode-list"></div>
+            <button class="btn btn-ghost block" onclick="openModeEditor(null)">
+                <svg class="icon"><use href="#i-plus"/></svg>
+                <span data-i18n="modes.new_mode">Neuer Modus</span>
+            </button>
         </div>
 
         <div class="card">
@@ -66,15 +64,73 @@
         </a>
     </main>
 
+    <!-- Editor für eigene Spielmodi (Felder wie in der App) -->
+    <div class="overlay" id="mode-editor">
+        <div class="dialog form">
+            <div class="detail-head">
+                <h3 id="mode-editor-title">Neuer Spielmodus</h3>
+                <button class="icon-btn" onclick="closeModeEditor()" aria-label="Close"><svg class="icon"><use href="#i-x"/></svg></button>
+            </div>
+            <div id="mode-editor-error" class="status-message status-error"></div>
+
+            <div class="field">
+                <label for="mode-name" data-i18n="modes.name">Name</label>
+                <input type="text" id="mode-name" maxlength="40">
+            </div>
+            <div class="field">
+                <label for="mode-description" data-i18n="modes.description">Beschreibung</label>
+                <input type="text" id="mode-description" maxlength="120">
+            </div>
+
+            <div class="field">
+                <label data-i18n="modes.games_per_set">Games pro Satz</label>
+                <div class="stepper">
+                    <button class="icon-btn" id="mode-games-minus" onclick="stepMode('games', -1)">−</button>
+                    <output id="mode-games">6</output>
+                    <button class="icon-btn" onclick="stepMode('games', 1)">+</button>
+                </div>
+            </div>
+
+            <div class="switch-row">
+                <div class="txt"><b data-i18n="modes.with_advantage">Mit Vorteil</b><small data-i18n="modes.advantage_desc">Advantage bei Deuce (40:40)</small></div>
+                <input type="checkbox" id="mode-advantage" onchange="syncModeEditor(true)">
+            </div>
+            <div class="switch-row" id="mode-golden-row">
+                <div class="txt"><b data-i18n="modes.golden_point">Golden Point</b><small id="mode-golden-desc"></small></div>
+                <input type="checkbox" id="mode-golden">
+            </div>
+            <div class="switch-row">
+                <div class="txt"><b data-i18n="modes.tiebreak">Tiebreak</b><small data-i18n="modes.tiebreak_desc">Tiebreak bei Gleichstand im Satz</small></div>
+                <input type="checkbox" id="mode-tiebreak" onchange="syncModeEditor(true)">
+            </div>
+
+            <div id="mode-tiebreak-fields">
+                <div class="field">
+                    <label data-i18n="modes.tiebreak_from">Tiebreak ab Spielstand</label>
+                    <div class="stepper">
+                        <button class="icon-btn" id="mode-tbat-minus" onclick="stepMode('tbAt', -1)">−</button>
+                        <output id="mode-tbat">6:6</output>
+                        <button class="icon-btn" onclick="stepMode('tbAt', 1)">+</button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label data-i18n="modes.tiebreak_points">Tiebreak-Punkte</label>
+                    <div class="segmented" id="mode-tbpoints">
+                        <button data-points="7" onclick="setModeTbPoints(7)">7</button>
+                        <button data-points="10" onclick="setModeTbPoints(10)">10</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-row" style="margin-top: 18px;">
+                <button class="btn btn-ghost" onclick="closeModeEditor()" data-i18n="common.cancel">Abbrechen</button>
+                <button class="btn btn-primary" id="mode-save" onclick="saveMode()">Erstellen</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentState = null;
-        let gameModeDescriptions = {};
-
-        function showGameModeDescription() {
-            const id = document.getElementById('game-mode').value;
-            document.getElementById('game-mode-description').textContent = gameModeDescriptions[id] || '';
-        }
-
         async function loadSettings() {
             try {
                 const response = await fetch('/api/state');
@@ -101,36 +157,69 @@
             }
         }
         
+        // ── Spielmodi: Auswahl, Anlegen, Bearbeiten, Löschen ─────────────────
+        let gameModes = [];
+        let editor = null;   // {id, iconKey, games, tbAt, tbPoints}
+
         async function loadGameModes() {
             try {
-                const response = await fetch('/api/game-modes');
-                const modes = await response.json();
-                const select = document.getElementById('game-mode');
-                select.innerHTML = '';
-                
-                const currentGameMode = currentState?.game_mode || 'mit_vorteil_tiebreak';
-                
-                modes.forEach(mode => {
-                    const option = document.createElement('option');
-                    option.value = mode.id;
-                    option.textContent = mode.name;
-                    option.title = mode.description;
-                    if (currentGameMode === mode.id) {
-                        option.selected = true;
-                    }
-                    select.appendChild(option);
-                });
-                gameModeDescriptions = Object.fromEntries(modes.map(m => [m.id, m.description || '']));
-                showGameModeDescription();
+                gameModes = await (await fetch('/api/game-modes')).json();
+                renderGameModes();
             } catch (error) {
                 console.error('Error loading game modes:', error);
             }
         }
-        
-        async function saveGameMode() {
-            const gameModeId = document.getElementById('game-mode').value;
-            showGameModeDescription();
-            
+
+        function modePills(rules) {
+            const pill = (text, color) => `<span class="mode-pill" style="--c:${color}">${esc(text)}</span>`;
+            const advantage = rules.advantage !== false && !rules.golden_point;
+            let html = pill(advantage ? tr('modes.advantage', 'Vorteil') : tr('modes.no_advantage', 'Kein Vorteil'),
+                advantage ? '#0A84FF' : '#FF9500');
+            html += pill(rules.tiebreak ? tr('modes.tiebreak', 'Tiebreak') : tr('modes.no_tiebreak', 'Kein Tiebreak'),
+                rules.tiebreak ? '#39C46E' : '#9AA3BD');
+            if (rules.golden_point) html += pill(tr('modes.golden_point', 'Golden Point'), '#E9A23B');
+            html += pill(tr('modes.games_per_set_n', '{count} Games/Satz', {count: rules.games_to_win_set || 6}), '#8E7CF8');
+            return html;
+        }
+
+        function renderGameModes() {
+            const current = currentState?.game_mode || 'mit_vorteil_tiebreak';
+            const row = mode => `
+                <div class="mode-row${mode.id === current ? ' selected' : ''}" role="button" tabindex="0" data-mode="${esc(mode.id)}">
+                    <span class="radio"></span>
+                    <span class="body">
+                        <b>${esc(mode.name)}</b>
+                        ${mode.description ? `<small>${esc(mode.description)}</small>` : ''}
+                        <span class="mode-pills">${modePills(mode.rules || {})}</span>
+                    </span>
+                    ${mode.is_custom ? `<span class="actions">
+                        <button class="icon-btn" data-edit="${esc(mode.id)}" title="${esc(tr('modes.edit', 'Bearbeiten'))}">${icon('settings')}</button>
+                        <button class="icon-btn danger" data-delete="${esc(mode.id)}" title="${esc(tr('stats.delete', 'Löschen'))}">${icon('trash')}</button>
+                    </span>` : ''}
+                </div>`;
+            const standard = gameModes.filter(m => !m.is_custom), custom = gameModes.filter(m => m.is_custom);
+            document.getElementById('mode-list').innerHTML =
+                `<div class="mode-section">${esc(tr('modes.standard_modes', 'Standard-Modi'))}</div>`
+                + standard.map(row).join('')
+                + `<div class="mode-section">${esc(tr('modes.custom_modes', 'Eigene Modi'))}</div>`
+                + (custom.length ? custom.map(row).join('')
+                    : `<p class="muted small" style="margin-bottom:10px">${esc(tr('modes.no_custom_modes', 'Noch keine eigenen Modi'))}</p>`);
+        }
+
+        document.getElementById('mode-list').addEventListener('click', e => {
+            const edit = e.target.closest('[data-edit]');
+            if (edit) return openModeEditor(edit.dataset.edit);
+            const del = e.target.closest('[data-delete]');
+            if (del) return deleteMode(del.dataset.delete);
+            const row = e.target.closest('[data-mode]');
+            if (row) saveGameMode(row.dataset.mode);
+        });
+        document.getElementById('mode-list').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && e.target.matches('[data-mode]')) saveGameMode(e.target.dataset.mode);
+        });
+
+        async function saveGameMode(gameModeId) {
+            if (gameModeId === currentState?.game_mode) return;
             try {
                 const response = await fetch('/api/settings/game-mode', {
                     method: 'POST',
@@ -138,16 +227,164 @@
                     body: JSON.stringify({game_mode: gameModeId})
                 });
                 const data = await response.json();
-                
+
                 if (data.status === 'success') {
-                    showStatus('Spielmodus gespeichert', 'success');
+                    showStatus(tr('modes.selected', 'Spielmodus gespeichert'), 'success');
                     currentState = data.state;
+                    renderGameModes();
                 } else {
-                    showStatus('Fehler beim Speichern', 'error');
+                    showStatus(tr('modes.save_error', 'Fehler beim Speichern'), 'error');
                 }
             } catch (error) {
                 console.error('Error saving game mode:', error);
-                showStatus('Fehler beim Speichern des Spielmodus', 'error');
+                showStatus(tr('modes.save_error', 'Fehler beim Speichern'), 'error');
+            }
+        }
+
+        // Gleiche ID-Regel wie in der App (GameModeManager.generateId)
+        function generateModeId(name) {
+            const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+            return 'custom_' + slug;
+        }
+
+        function openModeEditor(id) {
+            const mode = id ? gameModes.find(m => m.id === id) : null;
+            const rules = mode?.rules || {};
+            const tbPoints = rules.tiebreak_points_to_win || rules.tiebreak_points || 7;
+            editor = {
+                id: mode?.id || null,
+                iconKey: mode?.icon_key || null,
+                games: rules.games_to_win_set || 6,
+                tbAt: (rules.tiebreak_at_games || [])[0] || 6,
+                tbPoints: tbPoints === 10 ? 10 : 7,
+            };
+            document.getElementById('mode-name').value = mode?.name || '';
+            document.getElementById('mode-description').value = mode?.description || '';
+            document.getElementById('mode-advantage').checked = mode ? rules.advantage !== false : true;
+            document.getElementById('mode-tiebreak').checked = mode ? !!rules.tiebreak : true;
+            document.getElementById('mode-golden').checked = !!rules.golden_point;
+            document.getElementById('mode-editor-title').textContent = mode
+                ? tr('modes.editor_edit_title', 'Spielmodus bearbeiten') : tr('modes.editor_new_title', 'Neuer Spielmodus');
+            document.getElementById('mode-save').textContent = mode
+                ? tr('modes.save', 'Speichern') : tr('modes.create', 'Erstellen');
+            document.getElementById('mode-editor-error').style.display = 'none';
+            syncModeEditor(false);
+            document.getElementById('mode-editor').classList.add('show');
+            document.getElementById('mode-name').focus();
+        }
+
+        function closeModeEditor() {
+            document.getElementById('mode-editor').classList.remove('show');
+            editor = null;
+        }
+
+        // Ohne Vorteil und ohne Tiebreak entscheidet nur ein Golden Point ein
+        // Spiel – dann ist er Pflicht; sonst wird er nach einem Umschalten
+        // ausgeschaltet und dem Nutzer überlassen (wie in der App).
+        function syncModeEditor(toggled) {
+            const advantage = document.getElementById('mode-advantage').checked;
+            const tiebreak = document.getElementById('mode-tiebreak').checked;
+            const golden = document.getElementById('mode-golden');
+            if (toggled || (!advantage && !tiebreak)) golden.checked = !advantage && !tiebreak;
+            golden.disabled = !tiebreak;
+            document.getElementById('mode-golden-row').classList.toggle('hidden', advantage);
+            document.getElementById('mode-golden-desc').textContent = tiebreak
+                ? tr('modes.golden_point_desc', 'Entscheidungspunkt bei Deuce')
+                : tr('modes.golden_point_required', 'Ohne Vorteil und Tiebreak zwingend nötig');
+            document.getElementById('mode-tiebreak-fields').classList.toggle('hidden', !tiebreak);
+            document.getElementById('mode-games').textContent = editor.games;
+            document.getElementById('mode-games-minus').disabled = editor.games <= 2;
+            document.getElementById('mode-tbat').textContent = `${editor.tbAt}:${editor.tbAt}`;
+            document.getElementById('mode-tbat-minus').disabled = editor.tbAt <= 2;
+            document.querySelectorAll('#mode-tbpoints button').forEach(b =>
+                b.classList.toggle('active', Number(b.dataset.points) === editor.tbPoints));
+        }
+
+        function stepMode(field, delta) {
+            editor[field] = Math.max(2, Math.min(20, editor[field] + delta));
+            syncModeEditor(false);
+        }
+
+        function setModeTbPoints(points) {
+            editor.tbPoints = points;
+            syncModeEditor(false);
+        }
+
+        function showModeError(message) {
+            const box = document.getElementById('mode-editor-error');
+            box.textContent = message;
+            box.style.display = 'block';
+        }
+
+        async function saveMode() {
+            const name = document.getElementById('mode-name').value.trim();
+            if (!name) return showModeError(tr('modes.name_required', 'Bitte einen Namen eingeben'));
+            const id = editor.id || generateModeId(name);
+            if (id === 'custom_') return showModeError(tr('modes.name_invalid', 'Der Name braucht mindestens einen Buchstaben oder eine Ziffer'));
+            if (!editor.id && gameModes.some(m => m.id === id)) {
+                return showModeError(tr('modes.name_exists', 'Es gibt bereits einen Modus mit diesem Namen'));
+            }
+            const advantage = document.getElementById('mode-advantage').checked;
+            const tiebreak = document.getElementById('mode-tiebreak').checked;
+            const payload = {
+                id, name,
+                // Uhr des Browsers: beim Sync mit der App gewinnt die jüngste Änderung
+                updated_at: Date.now(),
+                description: document.getElementById('mode-description').value.trim(),
+                is_custom: true,
+                rules: {
+                    sets_to_win: 2,
+                    games_to_win_set: editor.games,
+                    games_minimum_difference: 2,
+                    advantage,
+                    tiebreak,
+                    tiebreak_at_games: tiebreak ? [editor.tbAt, editor.tbAt] : [],
+                    tiebreak_points_to_win: tiebreak ? editor.tbPoints : 0,
+                    tiebreak_minimum_difference: tiebreak ? 2 : 0,
+                    golden_point: !advantage && document.getElementById('mode-golden').checked,
+                },
+            };
+            if (editor.iconKey) payload.icon_key = editor.iconKey;
+            try {
+                const response = await fetch('/api/game-modes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    return showModeError(typeof data.detail === 'string' ? data.detail : tr('modes.save_error', 'Fehler beim Speichern'));
+                }
+                closeModeEditor();
+                showStatus(tr('modes.saved', 'Spielmodus gespeichert'), 'success');
+                await loadGameModes();
+            } catch (error) {
+                showModeError(tr('modes.save_error', 'Fehler beim Speichern'));
+            }
+        }
+
+        async function deleteMode(id) {
+            const mode = gameModes.find(m => m.id === id);
+            if (!mode) return;
+            const ok = await confirmDialog(tr('modes.delete_title', 'Modus löschen?'),
+                tr('modes.delete_message', 'Möchtest du "{name}" wirklich löschen?', {name: mode.name}),
+                tr('stats.delete', 'Löschen'), true);
+            if (!ok) return;
+            try {
+                const response = await fetch(`/api/game-modes/${encodeURIComponent(id)}?deleted_at=${Date.now()}`, {method: 'DELETE'});
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    showStatus(response.status === 409
+                        ? tr('modes.delete_in_use', 'Dieser Modus wird im laufenden Match verwendet.')
+                        : (typeof data.detail === 'string' ? data.detail : tr('stats.delete_error', 'Fehler beim Löschen')), 'error');
+                    return;
+                }
+                showStatus(tr('modes.deleted', 'Spielmodus gelöscht'), 'success');
+                const state = await (await fetch('/api/state')).json();
+                currentState = state.state;
+                await loadGameModes();
+            } catch (error) {
+                showStatus(tr('stats.delete_error', 'Fehler beim Löschen'), 'error');
             }
         }
 
@@ -251,8 +488,10 @@
             try {
                 const response = await fetch('/api/state');
                 const data = await response.json();
+                const modeChanged = data.state.game_mode !== currentState?.game_mode;
                 currentState = data.state;
                 updateServeDisplay();
+                if (modeChanged) renderGameModes();
             } catch (error) {
                 console.error('Error refreshing state:', error);
             }

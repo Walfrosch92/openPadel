@@ -79,7 +79,8 @@ Connect the **Waveshare 2.9″ E-Paper module** to the Raspberry Pi GPIO header 
 
 ### 📊 Scoreboard
 - **Real-time scoring** for tennis, padel or similar sports
-- **Multiple game modes**: With/without advantage, tiebreak, custom modes can be created
+- **Multiple game modes**: With/without advantage, tiebreak, golden point
+- **Custom game modes**: create, edit and delete your own modes in the web interface ("New match") or in the app – the four built-in modes are protected
 - **Best-of series**: Best-of-3 or Best-of-5 selectable
 - **Undo function** for scoring errors
 - **Match history**: Point-by-point tracking

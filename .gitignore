@@ -21,6 +21,7 @@ data/stats.json
 data/state_backup.json
 data/wifi_config.json
 data/wifi_ap_settings.json
+data/deleted_game_modes.json
 data/update_settings.json
 data/update_status.json
 data/update_pending.json

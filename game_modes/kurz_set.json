@@ -1,14 +1,18 @@
 {
   "name": "Kurz-Set",
-  "description": "Kurze Sätze bis 4 Games mit Tiebreak bei 4:4",
+  "description": "Nur 4 Games pro Satz, Tiebreak bei 4:4",
   "rules": {
-    "advantage": true,
-    "tiebreak": true,
-    "tiebreak_at_games": [4, 4],
-    "tiebreak_points": 7,
-    "tiebreak_minimum_difference": 2,
+    "sets_to_win": 2,
     "games_to_win_set": 4,
     "games_minimum_difference": 2,
-    "final_set_tiebreak": true
+    "advantage": true,
+    "tiebreak": true,
+    "tiebreak_at_games": [
+      4,
+      4
+    ],
+    "tiebreak_points_to_win": 7,
+    "tiebreak_minimum_difference": 2,
+    "golden_point": false
   }
 }

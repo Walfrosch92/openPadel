@@ -178,7 +178,23 @@ class GameModePayload(BaseModel):
     name: str
     description: str = ""
     is_custom: bool = True
+    icon_key: Optional[str] = None  # Material-Codepoint oder Emoji (wie in der App)
+    # Zeitpunkt der letzten Änderung in ms, von der Uhr des Geräts, das den
+    # Modus bearbeitet hat (App oder Browser) - die Pi-Uhr ist ohne Internet
+    # nicht verlässlich. Beim Sync gewinnt die neuere Fassung.
+    updated_at: Optional[int] = None
     rules: GameModeRules
+
+# Mitgelieferte Spielmodi: weder bearbeitbar noch löschbar (wie in der App)
+FIXED_GAME_MODE_IDS = frozenset({
+    "mit_vorteil_tiebreak",
+    "ohne_vorteil_tiebreak",
+    "mit_vorteil_ohne_tiebreak",
+    "kurz_set",
+})
+DEFAULT_GAME_MODE_ID = "mit_vorteil_tiebreak"
+# Die ID wird als Dateiname in game_modes/ verwendet
+GAME_MODE_ID_PATTERN = re.compile(r"^[a-z0-9_]{1,64}$")
 
 # ============================================================================
 # GAME LOGIC
@@ -187,10 +203,38 @@ class GameModePayload(BaseModel):
 class GameModeManager:
     """Verwaltet verfügbare Spielmodi"""
     
-    def __init__(self, modes_dir: Path = Path("game_modes")):
+    def __init__(self, modes_dir: Path = Path("game_modes"),
+                 deleted_file: Path = Path("data") / "deleted_game_modes.json"):
         self.modes_dir = modes_dir
         self.modes_dir.mkdir(exist_ok=True)
         self.modes = self.load_modes()
+        # Löschmarken {id: Zeitpunkt in ms}: ohne sie würde eine App, die einen
+        # gelöschten Modus noch kennt, ihn beim nächsten Sync wieder anlegen.
+        self.deleted_file = deleted_file
+        self.deleted: Dict[str, int] = self._load_deleted()
+
+    def _load_deleted(self) -> Dict[str, int]:
+        try:
+            with open(self.deleted_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return {str(k): int(v) for k, v in data.items()} if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _save_deleted(self):
+        try:
+            self.deleted_file.parent.mkdir(exist_ok=True)
+            write_json_atomic(self.deleted_file, self.deleted)
+        except Exception as e:
+            logger.error(f"Löschmarken konnten nicht gespeichert werden: {e}")
+
+    def mark_deleted(self, mode_id: str, deleted_at: int):
+        self.deleted[mode_id] = max(self.deleted.get(mode_id, 0), int(deleted_at))
+        self._save_deleted()
+
+    def clear_deleted(self, mode_id: str):
+        if self.deleted.pop(mode_id, None) is not None:
+            self._save_deleted()
     
     def load_modes(self) -> Dict[str, Dict]:
         """Lädt alle Spielmodi aus dem Verzeichnis"""
@@ -1989,10 +2033,7 @@ async def get_state():
 @app.get("/api/game-modes")
 async def get_game_modes():
     """Gibt Liste verfügbarer Spielmodi mit vollständigen Regeln zurück"""
-    return [
-        {"id": mode_id, **mode}
-        for mode_id, mode in game_mode_manager.modes.items()
-    ]
+    return _game_mode_list()
 
 @app.get("/api/game-modes/{mode_id}")
 async def get_game_mode(mode_id: str):
@@ -2000,25 +2041,147 @@ async def get_game_mode(mode_id: str):
     mode = game_mode_manager.get_mode(mode_id)
     if not mode:
         raise HTTPException(status_code=404, detail=f"Spielmodus '{mode_id}' nicht gefunden")
-    return {"id": mode_id, **mode}
+    return {"id": mode_id, **mode, "is_custom": mode_id not in FIXED_GAME_MODE_IDS}
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+def _mode_updated_at(mode: Optional[Dict]) -> int:
+    try:
+        return int((mode or {}).get("updated_at") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+def _store_game_mode(payload: GameModePayload, updated_at: int):
+    """Prüft und speichert einen eigenen Spielmodus (löscht eine Löschmarke)."""
+    if payload.id in FIXED_GAME_MODE_IDS:
+        raise HTTPException(status_code=403, detail="Standard-Spielmodi können nicht geändert werden")
+    if not GAME_MODE_ID_PATTERN.match(payload.id):
+        raise HTTPException(status_code=400, detail="Ungültige Spielmodus-ID (erlaubt: a-z, 0-9, _)")
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name erforderlich")
+
+    rules = payload.rules.dict()
+    # Ohne Vorteil und ohne Tiebreak entscheidet nur ein Golden Point das Spiel
+    if not rules["advantage"] and not rules["tiebreak"]:
+        rules["golden_point"] = True
+    mode_data = {
+        "name": name,
+        "description": payload.description.strip(),
+        "is_custom": True,
+        "updated_at": int(updated_at),
+        "rules": rules,
+    }
+    if payload.icon_key:
+        mode_data["icon_key"] = payload.icon_key
+    game_mode_manager.save_mode(payload.id, mode_data)
+    game_mode_manager.clear_deleted(payload.id)
+
+def _game_mode_in_running_match(mode_id: str) -> bool:
+    return (current_match.game_mode == mode_id
+            and current_match.match_started and not current_match.match_finished)
+
+def _remove_game_mode(mode_id: str, deleted_at: int):
+    """Löscht einen eigenen Modus und merkt sich die Löschung für den Sync."""
+    global current_match
+    if current_match.game_mode == mode_id:
+        # Kein Match im Gange: zurück auf den Standardmodus
+        current_match.game_mode = DEFAULT_GAME_MODE_ID
+        state_manager.save_state(current_match)
+    game_mode_manager.delete_mode(mode_id)
+    game_mode_manager.mark_deleted(mode_id, deleted_at)
+
+def _game_mode_list() -> List[Dict]:
+    return [
+        {"id": mode_id, **mode, "is_custom": mode_id not in FIXED_GAME_MODE_IDS}
+        for mode_id, mode in game_mode_manager.modes.items()
+    ]
 
 @app.post("/api/game-modes")
 async def create_or_update_game_mode(payload: GameModePayload):
     """Speichert benutzerdefinierten Spielmodus (Upsert)"""
-    mode_data = {
-        "name": payload.name,
-        "description": payload.description,
-        "is_custom": payload.is_custom,
-        "rules": payload.rules.dict(),
-    }
-    game_mode_manager.save_mode(payload.id, mode_data)
+    _store_game_mode(payload, payload.updated_at or _now_ms())
     return {"status": "ok", "id": payload.id}
 
+@app.post("/api/game-modes/sync")
+async def sync_game_modes(request: Request):
+    """
+    Gleicht die eigenen Spielmodi mit einer App ab.
+
+    Body: {"modes": [<Modus mit updated_at>, ...], "deleted": {"<id>": <ms>, ...}}
+    Je Modus gewinnt die jüngste Aktion (Bearbeiten oder Löschen), egal ob sie
+    in der App, im Web-Interface oder auf einem anderen Handy passiert ist.
+    Antwort: alle Modi des Servers, alle Löschmarken und in "kept" die Modi,
+    deren Löschung warten muss, weil das laufende Match sie verwendet.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON-Objekt erwartet")
+    app_modes = body.get("modes") if isinstance(body.get("modes"), list) else []
+    app_deleted = body.get("deleted") if isinstance(body.get("deleted"), dict) else {}
+
+    kept = []
+    with match_lock:
+        # 1) In der App gelöschte Modi
+        for mode_id, raw_ts in app_deleted.items():
+            if mode_id in FIXED_GAME_MODE_IDS or not GAME_MODE_ID_PATTERN.match(str(mode_id)):
+                continue
+            try:
+                deleted_at = int(raw_ts)
+            except (TypeError, ValueError):
+                continue
+            existing = game_mode_manager.modes.get(mode_id)
+            if existing is not None:
+                if _mode_updated_at(existing) > deleted_at:
+                    continue  # danach noch bearbeitet: die Bearbeitung gewinnt
+                if _game_mode_in_running_match(mode_id):
+                    kept.append(mode_id)
+                    continue
+                _remove_game_mode(mode_id, deleted_at)
+            else:
+                game_mode_manager.mark_deleted(mode_id, deleted_at)
+
+        # 2) Modi der App: neu anlegen oder überschreiben, wenn sie jünger sind
+        for raw in app_modes:
+            try:
+                payload = GameModePayload(**raw)
+            except Exception:
+                continue
+            if payload.id in FIXED_GAME_MODE_IDS or payload.id in kept:
+                continue
+            updated_at = payload.updated_at or 0
+            deleted_at = game_mode_manager.deleted.get(payload.id)
+            if deleted_at is not None and deleted_at >= updated_at:
+                continue  # hier (oder auf einem anderen Gerät) später gelöscht
+            existing = game_mode_manager.modes.get(payload.id)
+            if existing is not None and _mode_updated_at(existing) >= updated_at:
+                continue  # Fassung des Servers ist gleich alt oder jünger
+            try:
+                _store_game_mode(payload, updated_at)
+            except HTTPException:
+                continue
+
+    return {
+        "modes": _game_mode_list(),
+        "deleted": game_mode_manager.deleted,
+        "kept": kept,
+    }
+
 @app.delete("/api/game-modes/{mode_id}")
-async def delete_game_mode(mode_id: str):
+async def delete_game_mode(mode_id: str, deleted_at: Optional[int] = None):
     """Löscht benutzerdefinierten Spielmodus"""
-    if not game_mode_manager.delete_mode(mode_id):
+    if mode_id in FIXED_GAME_MODE_IDS:
+        raise HTTPException(status_code=403, detail="Standard-Spielmodi können nicht gelöscht werden")
+    if mode_id not in game_mode_manager.modes:
         raise HTTPException(status_code=404, detail=f"Spielmodus '{mode_id}' nicht gefunden")
+    if _game_mode_in_running_match(mode_id):
+        raise HTTPException(status_code=409, detail="Spielmodus wird im laufenden Match verwendet")
+
+    _remove_game_mode(mode_id, deleted_at or _now_ms())
     return {"status": "ok", "id": mode_id}
 
 @app.post("/api/settings/game-mode")
