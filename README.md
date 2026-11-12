@@ -224,6 +224,7 @@ The openPadel app can trigger the update too: connect to the scoreboard, open **
 - The phone only *triggers* the update. The Pi downloads it itself, so the **Ethernet cable must be plugged in** – otherwise the app shows "Server has no internet (LAN cable?)".
 - "Install" works immediately, even while a match is running (the app asks first). The score is kept; the server is unreachable for about a minute while it restarts.
 - Servers without the auto-updater show a hint to update manually once.
+- After the update the installed version (short commit id) changes in the app and in the admin panel.
 
 ### Manual update
 
