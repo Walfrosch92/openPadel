@@ -3,7 +3,7 @@
 <head>
     <title>{{ t.nav.admin }} · openPadel</title>
 {% include "_head.html" %}
-    <script src="/static/js/qrcode.min.js"></script>
+    <script src="/static/js/qrcode.min.js?v={{ asset_version }}"></script>
 </head>
 <body>
 {% include "_nav.html" %}
@@ -720,6 +720,6 @@
             }
         });
     </script>
-    <script src="/static/js/shutdown.js"></script>
+    <script src="/static/js/shutdown.js?v={{ asset_version }}"></script>
 </body>
 </html>

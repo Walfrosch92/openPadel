@@ -605,7 +605,7 @@ hr { border: none; border-top: 1px solid var(--stroke); margin: 18px 0; }
    (static/fonts/openpadel-icons.woff2, nur diese 49 Glyphen) oder ein Emoji */
 @font-face {
     font-family: 'OpenPadelIcons';
-    src: url('/static/fonts/openpadel-icons.woff2') format('woff2');
+    src: url('/static/fonts/openpadel-icons.woff2?v=1') format('woff2');
     font-display: block;
 }
 .micon { font-family: 'OpenPadelIcons'; font-style: normal; font-weight: normal; line-height: 1; display: inline-block; }

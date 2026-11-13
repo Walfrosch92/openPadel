@@ -1325,11 +1325,28 @@ gesture_recognizer.on_gesture_callback = handle_gesture
 # HELPER FUNCTIONS
 # ============================================================================
 
+def _asset_version() -> str:
+    """Ändert sich, sobald sich eine Datei unter static/ ändert. Hängt als ?v=
+    an CSS/JS, damit Browser nach einem Update nicht die alte Fassung zeigen."""
+    digest = hashlib.sha1()
+    try:
+        for path in sorted(Path("static").rglob("*")):
+            if path.is_file():
+                stat = path.stat()
+                digest.update(f"{path}:{stat.st_size}:{int(stat.st_mtime)}".encode())
+    except OSError:
+        pass
+    return digest.hexdigest()[:10]
+
+# Der Server startet nach jedem Update neu, einmal berechnen genügt
+ASSET_VERSION = _asset_version()
+
 def get_template_context(request: Request, **kwargs) -> dict:
     """Erstellt Template-Context mit Übersetzungen"""
     context = {
         "t": language_manager.translations,
         "current_lang": language_manager.current_language,
+        "asset_version": ASSET_VERSION,
         **kwargs
     }
     return context
