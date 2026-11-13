@@ -12,15 +12,15 @@
 
         <div class="grid cols-2">
             <div class="card">
-                <div class="gesture-feedback">
+                <div class="video-container" style="margin-top: 0;">
+                    <img id="video-stream" alt="Webcam Stream">
+                    <canvas id="roi-canvas"></canvas>
+                </div>
+
+                <div class="gesture-feedback" style="margin-bottom: 14px;">
                     <h3 data-i18n="camera.detected_gesture">Detected Gesture</h3>
                     <div class="gesture-display grad-text" id="gesture-display" data-i18n="camera.none">None</div>
                     <div class="muted small" id="gesture-timestamp"></div>
-                </div>
-
-                <div class="video-container">
-                    <img id="video-stream" src="/webcam/stream" alt="Webcam Stream">
-                    <canvas id="roi-canvas"></canvas>
                 </div>
 
                 <div class="btn-row">
@@ -121,6 +121,17 @@
             canvas.width = videoStream.width;
             canvas.height = videoStream.height;
         };
+
+        // Stream per Skript starten (wie die Vorschau auf dem Scoreboard): die
+        // eindeutige Adresse verhindert, dass der Browser auf einen noch offenen
+        // Stream eines anderen Tabs wartet; bei Abbruch wird neu verbunden.
+        function startStream() {
+            videoStream.src = '/webcam/stream?t=' + Date.now();
+        }
+        videoStream.onerror = function() {
+            setTimeout(startStream, 3000);
+        };
+        startStream();
 
         document.getElementById('toggle-roi').addEventListener('click', function() {
             isEditingROI = !isEditingROI;

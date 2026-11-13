@@ -299,7 +299,7 @@
                 const d = await r.json();
                 const cam = document.getElementById('scoreboard-cam');
                 const active = d.gesture_recognition_enabled && d.enabled;
-                if (active && !cam.getAttribute('src')) cam.src = '/webcam/stream';
+                if (active && !cam.getAttribute('src')) cam.src = '/webcam/stream?t=' + Date.now();
                 if (!active && cam.getAttribute('src')) cam.removeAttribute('src');
                 cam.style.display = active ? 'block' : 'none';
             } catch (e) {}
