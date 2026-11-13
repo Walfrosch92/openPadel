@@ -109,12 +109,6 @@ case "$LANGUAGE" in
     MSG_REBOOT_CHOICE="Your choice (1/2): "
     MSG_REBOOTING="System is rebooting..."
     MSG_ENJOY="Enjoy openPadel!"
-    MSG_PYTHON_ERROR="ERROR: Python 3.13+ is not supported"
-    MSG_PYTHON_RUNNING="This system is running Python"
-    MSG_PYTHON_NEEDS="openPadel requires Raspberry Pi OS Bookworm (Python 3.11)."
-    MSG_PYTHON_MEDIAPIPE="mediapipe (gesture control) does not support Python 3.13 yet."
-    MSG_PYTHON_FLASH="Please flash Raspberry Pi OS Bookworm and try again."
-    MSG_PYTHON_DOWNLOAD="Download:"
     ;;
 "es")
     MSG_TITLE="openPadel - Instalación Solo Servidor"
@@ -183,12 +177,6 @@ case "$LANGUAGE" in
     MSG_REBOOT_CHOICE="Tu elección (1/2): "
     MSG_REBOOTING="Reiniciando el sistema..."
     MSG_ENJOY="¡Disfruta openPadel!"
-    MSG_PYTHON_ERROR="ERROR: Python 3.13+ no está soportado"
-    MSG_PYTHON_RUNNING="Este sistema usa Python"
-    MSG_PYTHON_NEEDS="openPadel requiere Raspberry Pi OS Bookworm (Python 3.11)."
-    MSG_PYTHON_MEDIAPIPE="mediapipe (control por gestos) aún no soporta Python 3.13."
-    MSG_PYTHON_FLASH="Por favor flashea Raspberry Pi OS Bookworm e inténtalo de nuevo."
-    MSG_PYTHON_DOWNLOAD="Descarga:"
     ;;
 *)
     MSG_TITLE="openPadel - Server-Only Installation"
@@ -257,12 +245,6 @@ case "$LANGUAGE" in
     MSG_REBOOT_CHOICE="Deine Wahl (1/2): "
     MSG_REBOOTING="System wird neu gestartet..."
     MSG_ENJOY="Viel Spaß mit openPadel!"
-    MSG_PYTHON_ERROR="FEHLER: Python 3.13+ wird nicht unterstützt"
-    MSG_PYTHON_RUNNING="Dieses System läuft mit Python"
-    MSG_PYTHON_NEEDS="openPadel benötigt Raspberry Pi OS Bookworm (Python 3.11)."
-    MSG_PYTHON_MEDIAPIPE="mediapipe (Gestensteuerung) unterstützt Python 3.13 noch nicht."
-    MSG_PYTHON_FLASH="Bitte Raspberry Pi OS Bookworm flashen und erneut versuchen."
-    MSG_PYTHON_DOWNLOAD="Download:"
     ;;
 esac
 
@@ -301,23 +283,9 @@ echo ""
 
 OS_CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
 
-# mediapipe requires Python < 3.13 – abort early on Trixie or newer
-PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
-if [ "$PYTHON_MINOR" -ge 13 ]; then
-    echo ""
-    echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${RED}║  ${MSG_PYTHON_ERROR}${NC}"
-    echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "  ${MSG_PYTHON_RUNNING} 3.${PYTHON_MINOR} (${OS_CODENAME})."
-    echo -e "  ${MSG_PYTHON_NEEDS}"
-    echo -e "  ${MSG_PYTHON_MEDIAPIPE}"
-    echo ""
-    echo -e "  ${YELLOW}${MSG_PYTHON_FLASH}${NC}"
-    echo -e "  ${MSG_PYTHON_DOWNLOAD} ${GREEN}https://www.raspberrypi.com/software/${NC}"
-    echo ""
-    exit 1
-fi
+# Python: Bookworm (3.11) und Trixie (3.13) - alle Pakete aus requirements.txt
+# gibt es für beide als fertige 64-Bit-Wheels (mediapipe ab 1.0 ist
+# unabhängig von der Python-Version).
 PYTHON_BIN="python3"
 
 # ==============================================================================
