@@ -318,6 +318,9 @@
     "delete_in_use": "This mode is used by the running match.",
     "name_required": "Please enter a name",
     "name_invalid": "The name needs at least one letter or digit",
-    "name_exists": "A mode with this name already exists"
+    "name_exists": "A mode with this name already exists",
+    "icon": "Icon",
+    "icon_hint": "Symbol or emoji, like in the app",
+    "icon_emoji": "Emoji (type or paste)"
   }
 }

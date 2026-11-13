@@ -601,6 +601,28 @@ hr { border: none; border-top: 1px solid var(--stroke); margin: 18px 0; }
 .mode-pill { padding: 2px 8px; border-radius: 8px; font-size: 10.5px; font-weight: 700; color: var(--c); background: color-mix(in srgb, var(--c) 15%, transparent); }
 .mode-row .actions { display: flex; gap: 6px; flex-shrink: 0; }
 .mode-row .actions .icon-btn { width: 34px; height: 34px; }
+/* Symbole der Spielmodi: dieselben Material-Icons wie im Icon-Picker der App
+   (static/fonts/openpadel-icons.woff2, nur diese 49 Glyphen) oder ein Emoji */
+@font-face {
+    font-family: 'OpenPadelIcons';
+    src: url('/static/fonts/openpadel-icons.woff2') format('woff2');
+    font-display: block;
+}
+.micon { font-family: 'OpenPadelIcons'; font-style: normal; font-weight: normal; line-height: 1; display: inline-block; }
+.mode-icon {
+    width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; padding: 0; border: none;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; line-height: 1;
+    background: linear-gradient(135deg, #007AFF, #5856D6);
+}
+.mode-icon.custom { background: linear-gradient(135deg, #BF5AF2, #9B59B6); }
+button.mode-icon { cursor: pointer; font-family: inherit; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; margin-top: 10px; }
+.icon-grid button {
+    aspect-ratio: 1; border-radius: 12px; cursor: pointer; font-size: 22px; color: var(--ink);
+    background: var(--glass); border: 1px solid var(--stroke); display: flex; align-items: center; justify-content: center;
+}
+.icon-grid button:hover { background: var(--glass-2); }
+.icon-grid button.active { border-color: var(--purple); background: rgba(191, 90, 242, .18); color: var(--purple); }
 .mode-section { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); margin: 14px 0 8px; }
 .mode-section:first-of-type { margin-top: 0; }
 .stepper { display: flex; align-items: center; gap: 12px; }

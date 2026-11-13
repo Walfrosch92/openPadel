@@ -318,6 +318,9 @@
     "delete_in_use": "Dieser Modus wird im laufenden Match verwendet.",
     "name_required": "Bitte einen Namen eingeben",
     "name_invalid": "Der Name braucht mindestens einen Buchstaben oder eine Ziffer",
-    "name_exists": "Es gibt bereits einen Modus mit diesem Namen"
+    "name_exists": "Es gibt bereits einen Modus mit diesem Namen",
+    "icon": "Icon",
+    "icon_hint": "Symbol oder Emoji, wie in der App",
+    "icon_emoji": "Emoji (eintippen oder einfügen)"
   }
 }

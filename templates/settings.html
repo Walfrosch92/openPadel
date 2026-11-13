@@ -82,6 +82,18 @@
                 <input type="text" id="mode-description" maxlength="120">
             </div>
 
+            <div class="switch-row">
+                <div class="txt"><b data-i18n="modes.icon">Icon</b><small data-i18n="modes.icon_hint">Symbol oder Emoji, wie in der App</small></div>
+                <button class="mode-icon custom" id="mode-icon-button" onclick="toggleIconPicker()" aria-label="Icon"></button>
+            </div>
+            <div id="mode-icon-picker" class="hidden">
+                <div class="field">
+                    <label for="mode-emoji" data-i18n="modes.icon_emoji">Emoji (eintippen oder einfügen)</label>
+                    <input type="text" id="mode-emoji" maxlength="8" placeholder="🎾" oninput="pickEmoji(this.value)">
+                </div>
+                <div class="icon-grid" id="mode-icon-grid"></div>
+            </div>
+
             <div class="field">
                 <label data-i18n="modes.games_per_set">Games pro Satz</label>
                 <div class="stepper">
@@ -170,6 +182,52 @@
             }
         }
 
+        // Icon-Schlüssel wie in der App: Material-Codepoint (Zahl) oder ein Emoji.
+        // Reihenfolge = kPickerMaterialIcons der App (lib/widgets/icon_picker.dart).
+        const MODE_ICONS = [58867, 58854, 58866, 58857, 58868, 58859, 58860, 58864, 58858, 58853, 58855, 58862, 58863, 58856, 58851, 57997, 58588, 57820, 57810, 57825, 58131, 58812, 58829, 57856, 58914, 58691, 58735, 58848, 57900, 58343, 984494, 58079, 983508, 984301, 58223, 58774, 57673, 58258, 57582, 58003, 58978, 63336, 63620, 63477, 58094, 58091, 58513, 983743, 59011];
+        const ICON_TENNIS = 58867, ICON_TUNE = 59011;
+
+        function modeIconHtml(key, isCustom) {
+            const fallback = isCustom ? ICON_TUNE : ICON_TENNIS;
+            if (!key) return `<i class="micon">&#${fallback};</i>`;
+            if (/^\d+$/.test(key)) {
+                return `<i class="micon">&#${MODE_ICONS.includes(Number(key)) ? key : fallback};</i>`;
+            }
+            return esc(key);
+        }
+
+        function renderIconPicker() {
+            const key = editor.iconKey;
+            document.getElementById('mode-icon-button').innerHTML = modeIconHtml(key, true);
+            document.getElementById('mode-icon-grid').innerHTML = MODE_ICONS.map(cp =>
+                `<button class="${String(cp) === key ? 'active' : ''}" data-icon="${cp}"><i class="micon">&#${cp};</i></button>`).join('');
+            const emoji = document.getElementById('mode-emoji');
+            const isEmoji = !!key && !/^\d+$/.test(key);
+            if (document.activeElement !== emoji) emoji.value = isEmoji ? key : '';
+        }
+
+        function toggleIconPicker() {
+            document.getElementById('mode-icon-picker').classList.toggle('hidden');
+        }
+
+        function pickEmoji(value) {
+            const text = value.trim();
+            // Nur das erste sichtbare Zeichen (ein Emoji kann aus mehreren Code-Einheiten bestehen)
+            const first = text && typeof Intl !== 'undefined' && Intl.Segmenter
+                ? [...new Intl.Segmenter().segment(text)][0].segment : [...text][0];
+            editor.iconKey = first && !/^\d+$/.test(first) ? first : null;
+            renderIconPicker();
+        }
+
+        document.getElementById('mode-icon-grid').addEventListener('click', e => {
+            const button = e.target.closest('[data-icon]');
+            if (!button) return;
+            // Erneuter Klick auf das gewählte Symbol entfernt es wieder
+            editor.iconKey = editor.iconKey === button.dataset.icon ? null : button.dataset.icon;
+            document.getElementById('mode-emoji').value = '';
+            renderIconPicker();
+        });
+
         function modePills(rules) {
             const pill = (text, color) => `<span class="mode-pill" style="--c:${color}">${esc(text)}</span>`;
             const advantage = rules.advantage !== false && !rules.golden_point;
@@ -187,6 +245,7 @@
             const row = mode => `
                 <div class="mode-row${mode.id === current ? ' selected' : ''}" role="button" tabindex="0" data-mode="${esc(mode.id)}">
                     <span class="radio"></span>
+                    <span class="mode-icon${mode.is_custom ? ' custom' : ''}">${modeIconHtml(mode.icon_key, mode.is_custom)}</span>
                     <span class="body">
                         <b>${esc(mode.name)}</b>
                         ${mode.description ? `<small>${esc(mode.description)}</small>` : ''}
@@ -269,6 +328,8 @@
                 ? tr('modes.save', 'Speichern') : tr('modes.create', 'Erstellen');
             document.getElementById('mode-editor-error').style.display = 'none';
             syncModeEditor(false);
+            document.getElementById('mode-icon-picker').classList.add('hidden');
+            renderIconPicker();
             document.getElementById('mode-editor').classList.add('show');
             document.getElementById('mode-name').focus();
         }
