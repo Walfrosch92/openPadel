@@ -10,6 +10,9 @@ pkill -f "uvicorn.*main:app" || true
 # Finde und stoppe alte Display-Worker-Prozesse
 pkill -f "display_worker.py" || true
 
+# Eine vom alten Server übrig gebliebene Kamera-Aufnahme blockiert die Kamera
+pkill -x rpicam-vid || true
+
 # Warte kurz
 sleep 2
 

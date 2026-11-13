@@ -3049,6 +3049,12 @@ def restart_server(delay: float = 1.5):
         os.kill(os.getpid(), signal.SIGTERM)
         # Offene Streams (Webcam) können das saubere Beenden blockieren
         time.sleep(15)
+        # Vor dem harten Beenden die Kamera freigeben: ein verwaister
+        # rpicam-vid-Prozess würde sie für den neuen Server blockieren
+        try:
+            gesture_recognizer.stop()
+        except Exception as e:
+            logger.warning(f"Kamera konnte nicht gestoppt werden: {e}")
         os._exit(0)
     timer = threading.Timer(delay, _terminate)
     timer.daemon = True

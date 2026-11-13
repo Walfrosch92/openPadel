@@ -118,7 +118,12 @@ else
 fi
 
 # Enable camera (IMX219: auto-detect off, explicit overlay required)
-if grep -q "^camera_auto_detect=0" "$BOOT_CONFIG" && grep -q "^dtoverlay=imx219" "$BOOT_CONFIG"; then
+# Ist schon ein Kamera-Sensor eingetragen (anderes Modell, z.B. imx296), bleibt
+# die Konfiguration unverändert: zwei Sensor-Overlays am selben Anschluss
+# blockieren sich gegenseitig ("no cameras available").
+if grep -qE "^dtoverlay=(imx[0-9]+|ov[0-9]+|arducam)" "$BOOT_CONFIG" && ! grep -q "^dtoverlay=imx219" "$BOOT_CONFIG"; then
+    echo -e "${GREEN}✓ $(grep -E "^dtoverlay=(imx[0-9]+|ov[0-9]+|arducam)" "$BOOT_CONFIG" | head -1)${NC}"
+elif grep -q "^camera_auto_detect=0" "$BOOT_CONFIG" && grep -q "^dtoverlay=imx219" "$BOOT_CONFIG"; then
     echo -e "${GREEN}✓ ${MSG_CAM_EXISTS}${NC}"
 else
     # Remove any existing camera_auto_detect line and replace with =0
