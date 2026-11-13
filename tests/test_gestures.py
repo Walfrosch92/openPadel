@@ -109,6 +109,19 @@ def main() -> int:
     check("Wechsel der Geste startet die Haltezeit neu",
           run(hold("team_a", 0, 0.6) + hold("team_b", 0.8, 0.6)), [])
 
+    # Anzeige, warum eine Geste (noch) nicht zählt
+    tracker = server.GestureTracker()
+    for t, c in hold("team_a", 0, 1):
+        tracker.update(c, t, 10)
+    check("nach dem Zählen: Arme senken", tracker.blocked(1.0, 10)[0], "release")
+    for t, c in hold(None, 1.2, 1) + hold("team_b", 2.4, 0.4):
+        tracker.update(c, t, 10)
+    check("zweiter Punkt in der Pause", tracker.blocked(2.8, 10)[0], "cooldown")
+    check("Restzeit der Pause", round(tracker.blocked(2.8, 10)[1]), 8)
+    for t, c in hold(None, 3.0, 1) + hold("undo", 4.2, 0.4):
+        tracker.update(c, t, 10)
+    check("Undo ist in der Pause nicht blockiert", tracker.blocked(4.6, 10)[0], None)
+
     # --- Erkennungsbereich ----------------------------------------------------
     # Person steht im ungespiegelten Bild bei x=0.5..: im Vorschaubild rechts
     right_side = person(ls=(0.26, 0.4), rs=(0.14, 0.4))   # Vorschau: x = 0.8

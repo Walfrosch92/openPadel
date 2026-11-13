@@ -373,6 +373,13 @@ Open the **Gestures** page and make sure the camera is active and gesture recogn
 | ✋ Left arm straight up, hand above your head | Point for Team B |
 | 🙌 Both arms straight out to the sides at shoulder height (T-position) | Undo last point |
 
+Two switches (Gestures page and app):
+
+- **Camera on** – the camera picture is shown on the Gestures page, in the app and on the watch. Off: no picture and no gestures.
+- **Gesture recognition** – only when this is on as well do gestures score points. Off: camera picture only.
+
+While a gesture is being held, the app's online scoreboard and the watch show a ring that fills up until the gesture counts.
+
 How to use it:
 
 1. **Face the camera** so that head and shoulders are visible. Left/right means your own left/right hand. Any player can give the gesture.

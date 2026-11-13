@@ -76,11 +76,19 @@
                     </div>
 
                     <div class="row">
+                        <label class="label" for="camera-enabled" data-i18n="camera.camera_enabled">Camera on</label>
+                        <input type="checkbox" id="camera-enabled" checked>
+                    </div>
+                    <p class="muted small" data-i18n="camera.camera_help">
+                        Shows the camera picture here and in the app. Off: no picture and no gestures.
+                    </p>
+
+                    <div class="row">
                         <label class="label" for="gesture-recognition-enabled" data-i18n="camera.gesture_recognition">Gesture Recognition Enabled</label>
                         <input type="checkbox" id="gesture-recognition-enabled" checked>
                     </div>
                     <p class="muted small" data-i18n="camera.gesture_help">
-                        Disable to save CPU (video stream only, no gestures)
+                        Only when this is on do gestures score points. Off: camera picture only.
                     </p>
 
                     <button class="btn btn-primary block" onclick="saveWebcamSettings()" style="margin-top: 16px;" data-i18n="camera.save_settings">
@@ -295,15 +303,22 @@
             let text;
             if (status.error) {
                 text = (getTranslation('camera.status_error') || 'Gesture recognition not available') + ': ' + status.error;
+            } else if (loadedSettings.enabled === false) {
+                text = getTranslation('camera.status_camera_off') || 'Camera is off';
             } else if (!status.available) {
                 text = getTranslation('camera.status_off') || 'Gesture recognition is off';
+            } else if (status.candidate && status.blocked === 'release') {
+                text = getTranslation('camera.status_release') || 'Lower your arms first';
+            } else if (status.candidate && status.blocked === 'cooldown') {
+                text = (getTranslation('camera.status_cooldown') || 'Pause after the last point – seconds left')
+                    + ': ' + Math.ceil(status.cooldown_remaining || 0);
             } else if (status.candidate) {
                 text = (getTranslation('camera.status_hold') || 'Gesture seen – keep holding') + ': ' + gestureLabel(status.candidate);
             } else {
                 text = (getTranslation('camera.status_persons') || 'People detected') + ': ' + status.persons;
             }
             line.textContent = text;
-            bar.style.display = status.candidate ? 'block' : 'none';
+            bar.style.display = (status.candidate && !status.blocked) ? 'block' : 'none';
             bar.value = status.progress || 0;
         }
 
@@ -326,6 +341,7 @@
 
                 document.getElementById('webcam-resolution').value = `${data.width}x${data.height}`;
                 document.getElementById('webcam-fps').value = data.fps || 10;
+                document.getElementById('camera-enabled').checked = data.enabled !== false;
                 document.getElementById('gesture-recognition-enabled').checked = data.gesture_recognition_enabled !== false;
             } catch (error) {
                 console.error('Error loading webcam settings:', error);
@@ -344,7 +360,7 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        enabled: loadedSettings.enabled !== false,
+                        enabled: document.getElementById('camera-enabled').checked,
                         width,
                         height,
                         fps,

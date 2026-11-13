@@ -1155,6 +1155,21 @@ class GestureTracker:
             return 0.0
         return max(0.0, min(1.0, (now - self.since) / GESTURE_HOLD_SECONDS))
 
+    def blocked(self, now: float, cooldown: float):
+        """Warum die gezeigte Geste (noch) nicht zählt: ("release", 0) = erst
+        die Arme senken, ("cooldown", Restsekunden) = Pause nach einem Punkt,
+        (None, 0) = sie läuft ganz normal."""
+        if self.candidate is None:
+            return None, 0.0
+        if not self.armed:
+            return "release", 0.0
+        if self.candidate != "undo":
+            remaining = cooldown - (now - self.last_point_time)
+            # Nur anzeigen, wenn die Pause länger dauert als das Halten selbst
+            if remaining > max(0.0, GESTURE_HOLD_SECONDS - (now - self.since)):
+                return "cooldown", remaining
+        return None, 0.0
+
     def update(self, candidate: Optional[str], now: float, cooldown: float,
                neutral: bool = True) -> Optional[str]:
         """candidate: Geste im aktuellen Bild. neutral=False: es ist eine Geste
@@ -1205,8 +1220,11 @@ class GestureRecognizer:
         self.last_gesture = None
         self.last_gesture_timestamp = None
         self.tracker = GestureTracker()
+        # blocked: None | "release" (Arme senken) | "cooldown" (Pause nach Punkt)
         self.status = {"available": False, "error": None, "persons": 0,
-                       "candidate": None, "progress": 0.0}
+                       "candidate": None, "progress": 0.0,
+                       "hold_seconds": GESTURE_HOLD_SECONDS,
+                       "blocked": None, "cooldown_remaining": 0.0}
 
     def start(self):
         """Startet Webcam und Gestenerkennung"""
@@ -1297,7 +1315,7 @@ class GestureRecognizer:
                     if now - last_new_frame > CAMERA_STALL_SECONDS:
                         logger.warning(f"[GestureRecognizer] No new frame for {CAMERA_STALL_SECONDS}s – restarting camera")
                         self.tracker.reset()
-                        self._set_status(persons=0, candidate=None, progress=0.0)
+                        self._set_status(persons=0, candidate=None, progress=0.0, blocked=None, cooldown_remaining=0.0)
                         self._restart_camera()
                         last_frame_id = 0
                         last_new_frame = time.monotonic()
@@ -1318,7 +1336,7 @@ class GestureRecognizer:
                         detector = None
                         detector_confidence = None
                     self.tracker.reset()
-                    self._set_status(available=False, persons=0, candidate=None, progress=0.0)
+                    self._set_status(available=False, persons=0, candidate=None, progress=0.0, blocked=None, cooldown_remaining=0.0)
                     continue
 
                 if now - last_process < GESTURE_PROCESS_INTERVAL:
@@ -1355,7 +1373,7 @@ class GestureRecognizer:
                     detector.close()
                 except Exception:
                     pass
-            self._set_status(available=False, persons=0, candidate=None, progress=0.0)
+            self._set_status(available=False, persons=0, candidate=None, progress=0.0, blocked=None, cooldown_remaining=0.0)
             logger.info("[GestureRecognizer] Capture loop ended")
 
     def _process_frame(self, detector, frame, now: float, settings):
@@ -1376,8 +1394,10 @@ class GestureRecognizer:
         candidate = next(iter(gestures)) if len(gestures) == 1 else None
         fired = self.tracker.update(candidate, now, settings.cooldown_seconds,
                                     neutral=not gestures)
-        self._set_status(persons=len(persons), candidate=candidate,
-                         progress=round(self.tracker.progress(now), 2))
+        blocked, remaining = self.tracker.blocked(now, settings.cooldown_seconds)
+        self._set_status(persons=len(persons), candidate=self.tracker.candidate,
+                         progress=round(self.tracker.progress(now), 2),
+                         blocked=blocked, cooldown_remaining=round(remaining, 1))
         if fired:
             self._handle_gesture(fired)
 

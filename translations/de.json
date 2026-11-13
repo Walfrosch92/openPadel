@@ -55,7 +55,7 @@
     "settings_saved": "Einstellungen gespeichert. Seite wird neu geladen...",
     "settings_save_error": "Fehler beim Speichern der Einstellungen",
     "gesture_recognition": "Gestenerkennung aktiviert",
-    "gesture_help": "Deaktivieren, um CPU zu sparen (nur Video-Stream, keine Gesten)",
+    "gesture_help": "Nur wenn das an ist, zählen Gesten Punkte. Aus: nur Kamerabild.",
     "gesture_guide": "Gesten-Anleitung",
     "team_a": "Team A ",
     "team_a_desc": "✋ Rechten Arm gestreckt nach oben, Hand über dem Kopf",
@@ -82,9 +82,14 @@
     "cooldown": "Pause zwischen zwei Punkt-Gesten (Sekunden)",
     "status_persons": "Erkannte Personen",
     "status_hold": "Geste erkannt – weiter halten",
-    "status_off": "Gestenerkennung ist aus",
+    "status_off": "Gestenerkennung ist aus – es werden keine Punkte gezählt",
     "status_error": "Gestenerkennung nicht verfügbar",
-    "roi_cleared": "ROI gelöscht – Gesten zählen im ganzen Bild"
+    "roi_cleared": "ROI gelöscht – Gesten zählen im ganzen Bild",
+    "status_release": "Erst die Arme senken",
+    "status_cooldown": "Pause nach dem letzten Punkt – noch Sekunden",
+    "camera_enabled": "Kamera ein",
+    "camera_help": "Zeigt das Kamerabild hier und in der App. Aus: kein Bild und keine Gesten.",
+    "status_camera_off": "Kamera ist aus"
   },
   "admin": {
     "title": "Admin Panel",

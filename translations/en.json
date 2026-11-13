@@ -55,7 +55,7 @@
     "settings_saved": "Settings saved. Page will reload...",
     "settings_save_error": "Error saving settings",
     "gesture_recognition": "Gesture Recognition Enabled",
-    "gesture_help": "Disable to save CPU (video stream only, no gestures)",
+    "gesture_help": "Only when this is on do gestures score points. Off: camera picture only.",
     "gesture_guide": "Gesture Guide",
     "team_a": "Team A ",
     "team_a_desc": "✋ Right arm straight up, hand above the head",
@@ -82,9 +82,14 @@
     "cooldown": "Pause between two point gestures (seconds)",
     "status_persons": "People detected",
     "status_hold": "Gesture seen – keep holding",
-    "status_off": "Gesture recognition is off",
+    "status_off": "Gesture recognition is off – no points are counted",
     "status_error": "Gesture recognition not available",
-    "roi_cleared": "ROI removed – gestures count in the whole picture"
+    "roi_cleared": "ROI removed – gestures count in the whole picture",
+    "status_release": "Lower your arms first",
+    "status_cooldown": "Pause after the last point – seconds left",
+    "camera_enabled": "Camera on",
+    "camera_help": "Shows the camera picture here and in the app. Off: no picture and no gestures.",
+    "status_camera_off": "Camera is off"
   },
   "admin": {
     "title": "Admin Panel",

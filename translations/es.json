@@ -55,7 +55,7 @@
     "settings_saved": "Ajustes guardados. La página se recargará...",
     "settings_save_error": "Error al guardar los ajustes",
     "gesture_recognition": "Reconocimiento de gestos activado",
-    "gesture_help": "Desactivar para ahorrar CPU (solo flujo de video, sin gestos)",
+    "gesture_help": "Solo si está activado los gestos cuentan puntos. Desactivado: solo imagen de la cámara.",
     "gesture_guide": "Guía de gestos",
     "team_a": "Equipo A ",
     "team_a_desc": "✋ Brazo derecho estirado hacia arriba, mano por encima de la cabeza",
@@ -82,9 +82,14 @@
     "cooldown": "Pausa entre dos gestos de punto (segundos)",
     "status_persons": "Personas detectadas",
     "status_hold": "Gesto detectado: sigue manteniéndolo",
-    "status_off": "El reconocimiento de gestos está desactivado",
+    "status_off": "El reconocimiento de gestos está desactivado: no se cuentan puntos",
     "status_error": "Reconocimiento de gestos no disponible",
-    "roi_cleared": "ROI eliminada: los gestos cuentan en toda la imagen"
+    "roi_cleared": "ROI eliminada: los gestos cuentan en toda la imagen",
+    "status_release": "Primero baja los brazos",
+    "status_cooldown": "Pausa tras el último punto: segundos restantes",
+    "camera_enabled": "Cámara activada",
+    "camera_help": "Muestra la imagen de la cámara aquí y en la app. Desactivada: sin imagen y sin gestos.",
+    "status_camera_off": "La cámara está apagada"
   },
   "admin": {
     "title": "Panel de administración",
