@@ -89,11 +89,13 @@ Connect the **Waveshare 2.9″ E-Paper module** to the Raspberry Pi GPIO header 
 
 ### 📸 Camera & Gesture Recognition
 - **Live camera streaming** via web interface & iOS app
-- **Hand gesture recognition** with MediaPipe:
+- **Gesture recognition** with MediaPipe Pose (body posture, works offline):
   - ✋ Right hand above head → Point for Team A
   - ✋ Left hand above head → Point for Team B
   - 🙌 Both arms outstretched at shoulder height (T-position) → Undo last point
-- **ROI editor** (Region of Interest) for custom detection zones
+  - Gestures are measured against the person's own head and shoulders, must be held for about 1 second and count only once
+- **ROI editor** (Region of Interest): only people standing inside the area are counted
+- **Adjustable sensitivity and pause** between point gestures, live status of what the camera sees
 - **Adjustable resolution** (640x480 to 1920x1080) & FPS (10-30)
 - **Gesture recognition can be toggled** – saves CPU resources
 
@@ -125,11 +127,11 @@ Connect the **Waveshare 2.9″ E-Paper module** to the Raspberry Pi GPIO header 
 |-----------|-------------|
 | Hardware | Raspberry Pi 4 or 5 (5 recommended) |
 | Camera | IMX219 with 200° fisheye (see hardware table) |
-| OS | **Raspberry Pi OS Bookworm** (Debian 12, Lite recommended) |
-| Python | 3.11 or newer (included in Bookworm) |
+| OS | **Raspberry Pi OS Bookworm** (Debian 12, 64-bit, Lite recommended) or Trixie (Debian 13, 64-bit) |
+| Python | 3.11 (Bookworm) or 3.13 (Trixie), included in the OS |
 | Network | **LAN cable required** during installation |
 
-> ⚠️ **OS Note:** openPadel is developed and tested on **Raspberry Pi OS Bookworm** (the current stable release). Older versions (Bullseye, Buster) are not officially supported.
+> ⚠️ **OS Note:** openPadel is developed and tested on **Raspberry Pi OS Bookworm**. The installer also runs on Trixie (Python 3.13); that combination is less tested. Older versions (Bullseye, Buster) are not officially supported.
 
 > 🌐 **Network Note:** Installation and updates must be performed **over a wired LAN connection**. During setup the Pi configures its own WiFi access point, which means the WiFi interface is no longer available for internet access. Always connect the Pi via Ethernet cable before running the installer or updater.
 
@@ -322,6 +324,7 @@ openPadel/
 ├── install_serveronly.sh  # Server-only installation (custom hardware)
 ├── requirements.txt       # Python dependencies
 ├── game_modes/            # Game mode definitions (JSON)
+├── models/                # Pose model for gesture recognition (MediaPipe)
 ├── data/                  # Configurations & state
 │   ├── match_state.json
 │   ├── webcam_settings.json
@@ -362,22 +365,38 @@ openPadel/
 
 ### Gesture Recognition
 
-Open the **Gestures** page and make sure the camera is active and gesture recognition is turned on. Show the corresponding hand gesture in front of the camera:
+Open the **Gestures** page and make sure the camera is active and gesture recognition is turned on. Turn towards the camera and show the gesture:
 
 | Gesture | Action |
 |---------|--------|
-| ✋ Right hand above head | Point for Team A |
-| ✋ Left hand above head | Point for Team B |
-| 🙌 Both arms at shoulder height (T-position) outstretched | Undo last point |
+| ✋ Right arm straight up, hand above your head | Point for Team A |
+| ✋ Left arm straight up, hand above your head | Point for Team B |
+| 🙌 Both arms straight out to the sides at shoulder height (T-position) | Undo last point |
 
-> ⏱️ The cooldown time between gestures is 10 seconds by default (adjustable in the UI).
+How to use it:
+
+1. **Face the camera** so that head and shoulders are visible. Left/right means your own left/right hand. Any player can give the gesture.
+2. **Hold the gesture for about 1 second.** Short movements during play (smash, bandeja) are ignored on purpose.
+3. **Lower your arms** before the next gesture. A gesture that is held longer still counts only once – holding the T-position undoes exactly one point.
+4. **Raise only one hand** for a point and keep the other one below your face. Both hands up (cheering) does not count.
+5. After a point, further point gestures are ignored for the configured **pause** (default 10 seconds). Undo is always possible.
+
+Tips:
+
+- "Above the head" is measured against your own head, not against the picture – it works wherever you stand, as long as the camera can see you well. The closer and larger you are in the picture, the more reliable the recognition.
+- Below the camera picture the Gestures page shows live how many **people are detected** and a progress bar while a gesture is being held. If it shows 0 people, move closer or raise the **sensitivity**.
+- **Sensitivity**: higher = people are detected sooner and further away, but with more false detections. Takes effect immediately.
+- Up to 4 people are tracked. If two people show different gestures at the same time, nothing is counted.
 
 ### Setting up ROI (Recognition Area)
 
-1. Camera page → click **"Edit ROI"**
+Use this if people outside the court (spectators, neighbouring court) are visible to the camera.
+
+1. Gestures page → click **"Edit ROI"**
 2. Click points in the preview to set the polygon
 3. **Double-click** to close the polygon
-4. Click **"Save ROI"** – recognition now only works within this area
+4. Click **"Save ROI"** – only people standing inside this area (measured at their shoulders) are counted
+5. **"Clear ROI"** removes the area again – gestures then count in the whole picture
 
 ### Changing Language
 
@@ -396,13 +415,20 @@ All settings can be made either through the user interface or directly in the JS
   "enabled": true,
   "camera_index": 0,
   "detection_sensitivity": 0.7,
-  "cooldown_seconds": 10.0,
+  "cooldown_seconds": 10,
   "width": 640,
   "height": 480,
   "fps": 10,
-  "gesture_recognition_enabled": true
+  "gesture_recognition_enabled": true,
+  "roi_polygon": []
 }
 ```
+
+- `detection_sensitivity`: 0–1, higher = more sensitive
+- `cooldown_seconds`: pause between two point gestures (whole seconds)
+- `roi_polygon`: recognition area as `[[x, y], ...]` with values 0–1 relative to the preview picture; empty = whole picture
+
+The pose model is shipped with the server (`models/pose_landmarker_lite.task`), no internet connection is needed.
 
 ### Language Settings (`data/language_settings.json`)
 ```json
@@ -440,8 +466,8 @@ All settings can be made either through the user interface or directly in the JS
 | GET | `/webcam/stream` | MJPEG video stream |
 | GET | `/api/webcam/settings` | Get settings |
 | POST | `/api/webcam/settings` | Update settings |
-| POST | `/api/webcam/roi` | Save ROI polygon |
-| GET | `/api/webcam/last-gesture` | Get last gesture |
+| POST | `/api/webcam/roi` | Save ROI polygon (`{"roi": [[x, y], ...]}`, values 0–1; empty list removes it) |
+| GET | `/api/webcam/last-gesture` | Last gesture and live status (people detected, gesture being held) |
 
 ### System
 

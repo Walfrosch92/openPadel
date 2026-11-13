@@ -141,12 +141,17 @@ class WebcamSettings(BaseModel):
     """Webcam-Konfiguration"""
     enabled: bool = True
     camera_index: int = 0
+    # 0..1, höher = empfindlicher (erkennt Personen früher, auch weiter weg)
     detection_sensitivity: float = 0.7
-    cooldown_seconds: float = 10.0
+    # Sekunden zwischen zwei Punkt-Gesten. Ganzzahl: die App liest int.
+    cooldown_seconds: int = 10
     width: int = 640
     height: int = 480
     fps: int = 10
     gesture_recognition_enabled: bool = True
+    # Erkennungsbereich: Polygon [[x, y], ...] in 0..1 auf dem (gespiegelten)
+    # Vorschaubild; leer = ganzes Bild
+    roi_polygon: List[List[float]] = Field(default_factory=list)
 
 class WiFiAPSettings(BaseModel):
     """WiFi Access Point Konfiguration"""
@@ -700,7 +705,10 @@ class WebcamSettingsManager:
                 with open(self.settings_file, 'r') as f:
                     data = json.load(f)
                 logger.info("Webcam-Einstellungen geladen")
-                return WebcamSettings(**data)
+                settings = WebcamSettings(**data)
+                settings.roi_polygon = normalize_roi(
+                    settings.roi_polygon, settings.width, settings.height)
+                return settings
         except Exception as e:
             logger.warning(f"Fehler beim Laden der Webcam-Einstellungen: {e}")
         
@@ -978,6 +986,15 @@ class Camera:
     def get_frame(self):
         with self.lock:
             return None if self.frame is None else self.frame.copy()
+
+    def get_new_frame(self, last_id: int):
+        """(Bild, Nummer), wenn seit Bild `last_id` ein neues kam, sonst
+        (None, last_id). So wird ein stehengebliebenes Bild nicht erneut
+        verarbeitet."""
+        with self.lock:
+            if self.frame is None or self.frame_count == last_id:
+                return None, last_id
+            return self.frame.copy(), self.frame_count
     
     def stop(self):
         self.running = False
@@ -994,64 +1011,240 @@ class Camera:
 # ============================================================================
 # GESTURE RECOGNIZER
 # ============================================================================
+#
+# Erkannt wird die Körperhaltung (MediaPipe Pose), nicht einzelne Hände:
+#   - rechte Hand über dem Kopf  -> Punkt Team A
+#   - linke Hand über dem Kopf   -> Punkt Team B
+#   - beide Arme seitlich auf Schulterhöhe (T-Pose) -> Undo
+# "Über dem Kopf" und "Schulterhöhe" beziehen sich auf Kopf und Schultern
+# derselben Person, nicht auf die Position im Bild. Eine Geste zählt erst, wenn
+# sie GESTURE_HOLD_SECONDS gehalten wurde, und erst wieder, nachdem die Arme
+# unten waren.
+
+POSE_MODEL_PATH = Path(__file__).resolve().parent / "models" / "pose_landmarker_lite.task"
+
+# Landmark-Indizes von MediaPipe Pose (links/rechts = aus Sicht der Person)
+LM_NOSE, LM_L_SHOULDER, LM_R_SHOULDER, LM_L_WRIST, LM_R_WRIST = 0, 11, 12, 15, 16
+
+GESTURE_HOLD_SECONDS = 0.8      # so lange muss eine Geste gehalten werden
+GESTURE_MIN_SAMPLES = 3         # ... und in so vielen Bildern zu sehen sein
+GESTURE_GRACE_SECONDS = 0.5     # kurze Aussetzer der Erkennung überbrücken
+UNDO_MIN_INTERVAL = 2.0         # Mindestabstand zwischen zwei Undos
+GESTURE_PROCESS_INTERVAL = 0.2  # höchstens 5 Auswertungen pro Sekunde
+GESTURE_MAX_PERSONS = 4
+GESTURE_MIN_VISIBILITY = 0.5
+CAMERA_STALL_SECONDS = 15       # ohne neues Bild wird die Kamera neu gestartet
+
+
+def sensitivity_to_confidence(sensitivity: float) -> float:
+    """Höhere Empfindlichkeit = niedrigere Erkennungsschwelle (0 -> 0.9, 1 -> 0.3)."""
+    sensitivity = min(1.0, max(0.0, float(sensitivity)))
+    return round(0.9 - 0.6 * sensitivity, 2)
+
+
+def _lm(landmarks, index: int, aspect: float):
+    """Landmark als (x, y, sichtbar). x in Einheiten der Bildhöhe, damit
+    Abstände in x und y vergleichbar sind."""
+    p = landmarks[index]
+    visibility = getattr(p, "visibility", None)
+    visible = visibility is None or visibility >= GESTURE_MIN_VISIBILITY
+    return p.x * aspect, p.y, visible
+
+
+def classify_pose(landmarks, aspect: float = 4 / 3) -> Optional[str]:
+    """Geste einer Person: "team_a", "team_b", "undo" oder None.
+
+    landmarks: Pose-Landmarks (normalisiert 0..1) des UNGESPIEGELTEN Bildes.
+    """
+    nose_x, nose_y, nose_ok = _lm(landmarks, LM_NOSE, aspect)
+    ls_x, ls_y, ls_ok = _lm(landmarks, LM_L_SHOULDER, aspect)
+    rs_x, rs_y, rs_ok = _lm(landmarks, LM_R_SHOULDER, aspect)
+    if not (nose_ok and ls_ok and rs_ok):
+        return None
+    lw_x, lw_y, lw_ok = _lm(landmarks, LM_L_WRIST, aspect)
+    rw_x, rw_y, rw_ok = _lm(landmarks, LM_R_WRIST, aspect)
+
+    # Körpermaß: Schulterbreite; steht die Person seitlich, der Abstand
+    # Schultern-Nase (entspricht etwa 60 % der Schulterbreite)
+    shoulder_y = (ls_y + rs_y) / 2
+    shoulder_width = ((ls_x - rs_x) ** 2 + (ls_y - rs_y) ** 2) ** 0.5
+    scale = max(shoulder_width, 1.6 * (shoulder_y - nose_y))
+    if scale < 0.03 or nose_y >= shoulder_y:
+        return None  # zu klein oder nicht aufrecht
+
+    # T-Pose: Person frontal, beide Handgelenke auf Schulterhöhe und jeweils
+    # weit außen neben der eigenen Schulter
+    if lw_ok and rw_ok and abs(ls_x - rs_x) > 0.5 * scale:
+        outward = 1.0 if ls_x > rs_x else -1.0
+        left_out = (lw_x - ls_x) * outward
+        right_out = (rs_x - rw_x) * outward
+        level = 0.45 * scale
+        if (left_out > 0.9 * scale and right_out > 0.9 * scale
+                and abs(lw_y - ls_y) < level and abs(rw_y - rs_y) < level):
+            return "undo"
+
+    # Hand über dem Kopf: Handgelenk deutlich über der Nase, die andere Hand
+    # unterhalb der Nase. Beide Hände oben (Jubel) zählt nicht.
+    above = nose_y - 0.25 * scale
+    left_up = lw_ok and lw_y < above
+    right_up = rw_ok and rw_y < above
+    left_down = not lw_ok or lw_y > nose_y
+    right_down = not rw_ok or rw_y > nose_y
+    if right_up and left_down:
+        return "team_a"
+    if left_up and right_down:
+        return "team_b"
+    return None
+
+
+def point_in_polygon(x: float, y: float, polygon) -> bool:
+    inside = False
+    j = len(polygon) - 1
+    for i in range(len(polygon)):
+        xi, yi = polygon[i]
+        xj, yj = polygon[j]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def person_in_roi(landmarks, roi_polygon) -> bool:
+    """Liegt die Person (Schultermitte) im Erkennungsbereich? Der Bereich wird
+    auf dem gespiegelten Vorschaubild gezeichnet, daher x spiegeln."""
+    if not roi_polygon or len(roi_polygon) < 3:
+        return True
+    x = 1.0 - (landmarks[LM_L_SHOULDER].x + landmarks[LM_R_SHOULDER].x) / 2
+    y = (landmarks[LM_L_SHOULDER].y + landmarks[LM_R_SHOULDER].y) / 2
+    return point_in_polygon(x, y, roi_polygon)
+
+
+def normalize_roi(points, width: int, height: int) -> List[List[float]]:
+    """ROI als Liste [x, y] in 0..1. Pixelwerte (alte Web-Oberfläche) werden
+    umgerechnet; weniger als 3 gültige Punkte = kein Bereich."""
+    result = []
+    try:
+        pairs = [(float(p[0]), float(p[1])) for p in points]
+    except (TypeError, ValueError, IndexError):
+        return []
+    if any(x > 1.5 or y > 1.5 for x, y in pairs):
+        pairs = [(x / max(1, width), y / max(1, height)) for x, y in pairs]
+    for x, y in pairs:
+        result.append([round(min(1.0, max(0.0, x)), 4), round(min(1.0, max(0.0, y)), 4)])
+    return result if len(result) >= 3 else []
+
+
+class GestureTracker:
+    """Macht aus der Geste pro Bild ein Ereignis: Geste halten -> genau ein
+    Ereignis; das nächste erst, nachdem keine Geste mehr zu sehen war."""
+
+    def __init__(self):
+        self.reset()
+        self.last_point_time = float("-inf")
+        self.last_undo_time = float("-inf")
+
+    def reset(self):
+        self.candidate = None
+        self.since = 0.0
+        self.samples = 0
+        self.last_seen = float("-inf")
+        self.armed = True
+
+    def progress(self, now: float) -> float:
+        if self.candidate is None or not self.armed:
+            return 0.0
+        return max(0.0, min(1.0, (now - self.since) / GESTURE_HOLD_SECONDS))
+
+    def update(self, candidate: Optional[str], now: float, cooldown: float,
+               neutral: bool = True) -> Optional[str]:
+        """candidate: Geste im aktuellen Bild. neutral=False: es ist eine Geste
+        zu sehen, aber keine eindeutige (zählt nicht als "Arme unten")."""
+        if candidate is None:
+            if not neutral:
+                self.last_seen = now
+                self.candidate = None
+            elif now - self.last_seen > GESTURE_GRACE_SECONDS:
+                self.candidate = None
+                self.armed = True
+            return None
+
+        if candidate != self.candidate:
+            self.candidate = candidate
+            self.since = now
+            self.samples = 0
+        self.samples += 1
+        self.last_seen = now
+
+        if not self.armed:
+            return None
+        if now - self.since < GESTURE_HOLD_SECONDS or self.samples < GESTURE_MIN_SAMPLES:
+            return None
+        if candidate == "undo":
+            if now - self.last_undo_time < UNDO_MIN_INTERVAL:
+                return None
+            self.last_undo_time = now
+        else:
+            if now - self.last_point_time < cooldown:
+                return None
+            self.last_point_time = now
+        self.armed = False
+        return candidate
+
 
 class GestureRecognizer:
-    """MediaPipe-basierte Gestenerkennung für Webcam-Steuerung"""
-    
+    """Kamera + MediaPipe-Pose-Gestenerkennung"""
+
     def __init__(self, settings_manager: WebcamSettingsManager):
         self.settings_manager = settings_manager
-        self.mp_hands = mp.solutions.hands
-        self.hands = None
         self.camera = None
         self.is_running = False
-        self.last_gesture_time = 0
+        self.thread = None
         self.frame_lock = threading.Lock()
         self.latest_frame = None
         self.on_gesture_callback = None
         self.last_gesture = None
         self.last_gesture_timestamp = None
-    
+        self.tracker = GestureTracker()
+        self.status = {"available": False, "error": None, "persons": 0,
+                       "candidate": None, "progress": 0.0}
+
     def start(self):
         """Startet Webcam und Gestenerkennung"""
         if self.is_running:
             return
-        
+
         settings = self.settings_manager.settings
         if not settings.enabled:
             logger.info("Webcam ist deaktiviert")
             return
-        
+
         try:
-            # Verwende Camera-Klasse mit Einstellungen
             self.camera = Camera(
-                width=settings.width, 
-                height=settings.height, 
+                width=settings.width,
+                height=settings.height,
                 fps=settings.fps
             )
-            
-            self.hands = self.mp_hands.Hands(
-                static_image_mode=False,
-                max_num_hands=2,  # Bis zu 2 Hände erkennen
-                min_detection_confidence=settings.detection_sensitivity,
-                min_tracking_confidence=0.5
-            )
-            
             self.is_running = True
-            threading.Thread(target=self._capture_loop, daemon=True).start()
+            self.thread = threading.Thread(target=self._capture_loop, daemon=True)
+            self.thread.start()
             logger.info("Webcam gestartet mit rpicam-vid")
-        
         except Exception as e:
             logger.error(f"Fehler beim Starten der Webcam: {e}")
-    
+
     def stop(self):
         """Stoppt Webcam und Gestenerkennung"""
         self.is_running = False
+        # Erst die Schleife beenden: sie gibt den Detektor selbst frei
+        thread = self.thread
+        if thread and thread is not threading.current_thread():
+            thread.join(timeout=6)
+        self.thread = None
         if self.camera:
             self.camera.stop()
-        if self.hands:
-            self.hands.close()
+        with self.frame_lock:
+            self.latest_frame = None
         logger.info("Webcam gestoppt")
-    
+
     def _restart_camera(self):
         """Startet nur die Kamera neu (ohne capture loop neu zu starten)"""
         try:
@@ -1063,192 +1256,144 @@ class GestureRecognizer:
         except Exception as e:
             logger.error(f"[GestureRecognizer] Camera restart failed: {e}")
 
+    def _create_detector(self, confidence: float):
+        """MediaPipe PoseLandmarker (Tasks-API, in allen mediapipe-Versionen
+        ab 0.10 vorhanden; mp.solutions gibt es in neuen Versionen nicht mehr)."""
+        from mediapipe.tasks import python as mp_python
+        from mediapipe.tasks.python import vision
+
+        if not POSE_MODEL_PATH.exists():
+            raise FileNotFoundError(f"Pose-Modell fehlt: {POSE_MODEL_PATH}")
+        options = vision.PoseLandmarkerOptions(
+            base_options=mp_python.BaseOptions(model_asset_path=str(POSE_MODEL_PATH)),
+            running_mode=vision.RunningMode.VIDEO,
+            num_poses=GESTURE_MAX_PERSONS,
+            min_pose_detection_confidence=confidence,
+            min_pose_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+        return vision.PoseLandmarker.create_from_options(options)
+
+    def _set_status(self, **changes):
+        self.status = {**self.status, **changes}
+
     def _capture_loop(self):
         """Haupt-Capture-Loop (läuft in separatem Thread)"""
-        frame_counter = 0
-        gesture_cooldown_until = 0
-        last_frame_time = time.time()
+        detector = None
+        detector_confidence = None
+        detector_failed = False
+        last_frame_id = 0
+        last_new_frame = time.monotonic()
+        last_process = 0.0
         logger.info("[GestureRecognizer] Capture loop started")
 
-        while self.is_running:
-            frame = self.camera.get_frame()
-            if frame is None:
-                if time.time() - last_frame_time > 15:
-                    logger.warning("[GestureRecognizer] No frame for 15s – restarting camera")
-                    self._restart_camera()
-                    last_frame_time = time.time()
-                time.sleep(1.0)
-                continue
-            last_frame_time = time.time()
-            
-            frame_counter += 1
+        try:
+            while self.is_running:
+                frame, frame_id = self.camera.get_new_frame(last_frame_id)
+                now = time.monotonic()
+                if frame is None:
+                    # Kein NEUES Bild: ein stehengebliebenes Bild wird nie
+                    # erneut ausgewertet
+                    if now - last_new_frame > CAMERA_STALL_SECONDS:
+                        logger.warning(f"[GestureRecognizer] No new frame for {CAMERA_STALL_SECONDS}s – restarting camera")
+                        self.tracker.reset()
+                        self._set_status(persons=0, candidate=None, progress=0.0)
+                        self._restart_camera()
+                        last_frame_id = 0
+                        last_new_frame = time.monotonic()
+                    time.sleep(0.02)
+                    continue
 
-            if frame_counter == 1:
-                logger.info("[GestureRecognizer] First frame received from camera")
-
-            # Prüfe ob Gestenerkennung aktiviert ist
-            if not self.settings_manager.settings.gesture_recognition_enabled:
-                # Frame horizontal spiegeln für Anzeige
-                flipped_frame = cv2.flip(frame, 1)
+                if last_frame_id == 0:
+                    logger.info("[GestureRecognizer] First frame received from camera")
+                last_frame_id = frame_id
+                last_new_frame = now
                 with self.frame_lock:
-                    self.latest_frame = flipped_frame
-                time.sleep(0.015)
-                continue
+                    self.latest_frame = frame
 
-            # Nur jedes 6. Frame für Gestenerkennung verarbeiten (noch weniger CPU)
-            # UND nur wenn kein Cooldown aktiv ist
-            current_time = time.time()
-            if frame_counter % 6 != 0 or current_time < gesture_cooldown_until:
-                # Frame horizontal spiegeln für Anzeige
-                flipped_frame = cv2.flip(frame, 1)
-                with self.frame_lock:
-                    self.latest_frame = flipped_frame
-                time.sleep(0.015)
-                continue
+                settings = self.settings_manager.settings
+                if not settings.gesture_recognition_enabled:
+                    if detector is not None:
+                        detector.close()
+                        detector = None
+                        detector_confidence = None
+                    self.tracker.reset()
+                    self._set_status(available=False, persons=0, candidate=None, progress=0.0)
+                    continue
 
-            # Gestenerkennung auf UNGESPIEGELTEM Bild (für korrekte Hand-Labels)
-            small_frame = cv2.resize(frame, (240, 180))  # Original-Frame ohne Spiegelung
-            rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
-            
-            try:
-                results = self.hands.process(rgb_frame)
+                if now - last_process < GESTURE_PROCESS_INTERVAL:
+                    continue
+                last_process = now
 
-                # Gesten-Erkennung
-                if results.multi_hand_landmarks and results.multi_handedness:
-                    # Sammle alle Hände mit ihren Informationen
-                    hands_info = []
-                    for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
-                        hand_label = handedness.classification[0].label
-                        wrist = hand_landmarks.landmark[0]
-                        hands_info.append({
-                            'landmarks': hand_landmarks,
-                            'label': hand_label,
-                            'wrist': wrist
-                        })
+                # Detektor anlegen bzw. bei geänderter Empfindlichkeit neu anlegen
+                confidence = sensitivity_to_confidence(settings.detection_sensitivity)
+                if detector is None or confidence != detector_confidence:
+                    if detector_failed and confidence == detector_confidence:
+                        continue
+                    if detector is not None:
+                        detector.close()
+                        detector = None
+                    detector_confidence = confidence
+                    try:
+                        detector = self._create_detector(confidence)
+                        detector_failed = False
+                        self._set_status(available=True, error=None)
+                        logger.info(f"[GestureRecognizer] Pose-Erkennung bereit (Schwelle {confidence})")
+                    except Exception as e:
+                        detector_failed = True
+                        self._set_status(available=False, error=str(e))
+                        logger.error(f"[GestureRecognizer] Pose-Erkennung nicht verfügbar: {e}")
+                        continue
 
-                    # Prüfe zuerst auf T-Pose (2 Hände erkannt)
-                    if len(hands_info) >= 2:
-                        crossed = self._check_t_pose(hands_info)
-                        if crossed:
-                            logger.info("[Gesture] T-Pose erkannt → Undo")
-                            self._handle_gesture("undo")
-                            gesture_cooldown_until = current_time + 1.0
-                        else:
-                            # Keine verkreuzten Arme → prüfe einzelne Hände über Kopf
-                            for hand_info in hands_info:
-                                if hand_info['wrist'].y < 0.3:  # Hand über Kopf
-                                    gesture = self._recognize_hand_above_head(hand_info['label'])
-                                    if gesture:
-                                        self._handle_gesture(gesture)
-                                        gesture_cooldown_until = current_time + 1.0
-                                        break  # Nur erste Hand über Kopf zählt
-                    # Nur eine Hand → prüfe ob über Kopf
-                    elif len(hands_info) == 1:
-                        hand_info = hands_info[0]
-                        if hand_info['wrist'].y < 0.3:  # Hand über Kopf
-                            gesture = self._recognize_hand_above_head(hand_info['label'])
-                            if gesture:
-                                self._handle_gesture(gesture)
-                                gesture_cooldown_until = current_time + 1.0
-            except Exception as e:
-                logger.error(f"[GestureRecognizer] Error in gesture recognition: {e}")
+                try:
+                    self._process_frame(detector, frame, now, settings)
+                except Exception as e:
+                    logger.error(f"[GestureRecognizer] Error in gesture recognition: {e}")
+        finally:
+            if detector is not None:
+                try:
+                    detector.close()
+                except Exception:
+                    pass
+            self._set_status(available=False, persons=0, candidate=None, progress=0.0)
+            logger.info("[GestureRecognizer] Capture loop ended")
 
-            # Frame horizontal spiegeln für Anzeige
-            flipped_frame = cv2.flip(frame, 1)
-            with self.frame_lock:
-                self.latest_frame = flipped_frame
+    def _process_frame(self, detector, frame, now: float, settings):
+        """Wertet ein Bild aus (ungespiegelt, damit links/rechts stimmt)."""
+        height, width = frame.shape[:2]
+        if width > 640:
+            frame = cv2.resize(frame, (640, int(height * 640 / width)))
+            height, width = frame.shape[:2]
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = detector.detect_for_video(image, int(now * 1000))
 
-            time.sleep(0.015)
-    
-    def _check_t_pose(self, hands_info: list) -> bool:
-        """
-        Prüft ob beide Arme auf Schulterhöhe ausgestreckt sind (T-Pose = Undo)
+        roi = getattr(settings, "roi_polygon", None)
+        persons = [p for p in (result.pose_landmarks or []) if person_in_roi(p, roi)]
+        gestures = {g for g in (classify_pose(p, width / height) for p in persons) if g}
 
-        Bedingungen:
-        - Beide Hände sichtbar
-        - Beide Handgelenke auf Schulterhöhe (y zwischen 0.2 und 0.65)
-        - Hände weit auseinander horizontal (Abstand > 0.5)
-        - Hände auf ähnlicher Höhe (vertikale Differenz < 0.15)
-        """
-        if len(hands_info) < 2:
-            return False
+        # Zeigen zwei Personen Verschiedenes, zählt nichts
+        candidate = next(iter(gestures)) if len(gestures) == 1 else None
+        fired = self.tracker.update(candidate, now, settings.cooldown_seconds,
+                                    neutral=not gestures)
+        self._set_status(persons=len(persons), candidate=candidate,
+                         progress=round(self.tracker.progress(now), 2))
+        if fired:
+            self._handle_gesture(fired)
 
-        left_hand = None
-        right_hand = None
-
-        for hand_info in hands_info:
-            if hand_info['label'] == 'Left':
-                left_hand = hand_info
-            elif hand_info['label'] == 'Right':
-                right_hand = hand_info
-
-        if not left_hand or not right_hand:
-            return False
-
-        left_wrist = left_hand['wrist']
-        right_wrist = right_hand['wrist']
-
-        # Beide Handgelenke auf Schulterhöhe (nicht über Kopf, nicht zu tief)
-        if not (0.2 < left_wrist.y < 0.65 and 0.2 < right_wrist.y < 0.65):
-            logger.debug(f"[Gesture] T-Pose: Hände nicht auf Schulterhöhe: Left y={left_wrist.y:.2f}, Right y={right_wrist.y:.2f}")
-            return False
-
-        # Hände müssen weit ausgestreckt sein (mindestens 50% der Bildbreite Abstand)
-        horizontal_distance = abs(left_wrist.x - right_wrist.x)
-        if horizontal_distance < 0.5:
-            logger.debug(f"[Gesture] T-Pose: Hände nicht weit genug ausgestreckt: Abstand={horizontal_distance:.2f}")
-            return False
-
-        # Hände müssen auf ähnlicher Höhe sein (max. 15% Unterschied)
-        vertical_difference = abs(left_wrist.y - right_wrist.y)
-        if vertical_difference > 0.15:
-            logger.debug(f"[Gesture] T-Pose: Hände nicht auf gleicher Höhe: Diff={vertical_difference:.2f}")
-            return False
-
-        logger.info(f"[Gesture] T-Pose erkannt → Undo (Left: x={left_wrist.x:.2f}, y={left_wrist.y:.2f} | Right: x={right_wrist.x:.2f}, y={right_wrist.y:.2f})")
-        return True
-
-    def _recognize_hand_above_head(self, hand_label: str) -> Optional[str]:
-        """
-        Erkennt welche Hand über dem Kopf ist
-        NEUE ZUORDNUNG:
-        - Linke Hand über Kopf → Team A
-        - Rechte Hand über Kopf → Team B
-        """
-        # WICHTIG: MediaPipe verarbeitet das UNGESPIEGELTE Bild
-        # "Left" = Linke Hand der Person → Team A
-        # "Right" = Rechte Hand der Person → Team B
-        if hand_label == "Left":
-            logger.info(f"[Gesture] Linke Hand über Kopf erkannt → Team A (label={hand_label})")
-            return "team_a"
-        elif hand_label == "Right":
-            logger.info(f"[Gesture] Rechte Hand über Kopf erkannt → Team B (label={hand_label})")
-            return "team_b"
-
-        return None
-    
     def _handle_gesture(self, gesture: str):
-        """Verarbeitet erkannte Geste mit Cooldown (außer Undo)"""
-        current_time = time.time()
-        cooldown = self.settings_manager.settings.cooldown_seconds
-
-        # Undo hat KEIN Cooldown - kann jederzeit ausgeführt werden
-        if gesture != "undo":
-            if current_time - self.last_gesture_time < cooldown:
-                return
-
-        self.last_gesture_time = current_time
+        """Meldet eine erkannte Geste (Haltezeit und Cooldown sind schon geprüft)"""
         self.last_gesture = gesture
         self.last_gesture_timestamp = datetime.now().isoformat()
-
+        logger.info(f"Geste erkannt: {gesture}")
         if self.on_gesture_callback:
             self.on_gesture_callback(gesture)
-            logger.info(f"Geste erkannt: {gesture}")
-    
+
     def get_latest_frame(self) -> Optional[np.ndarray]:
-        """Gibt aktuellen Frame zurück (thread-safe)"""
+        """Aktuelles Bild für die Vorschau, horizontal gespiegelt (thread-safe)"""
         with self.frame_lock:
-            return self.latest_frame.copy() if self.latest_frame is not None else None
+            frame = self.latest_frame
+        return cv2.flip(frame, 1) if frame is not None else None
 
 # ============================================================================
 # FASTAPI APPLICATION
@@ -2509,13 +2654,17 @@ async def get_last_gesture():
     """Gibt letzte erkannte Geste zurück"""
     return {
         "gesture": gesture_recognizer.last_gesture,
-        "timestamp": gesture_recognizer.last_gesture_timestamp
+        "timestamp": gesture_recognizer.last_gesture_timestamp,
+        # Live-Zustand der Erkennung: available, error, persons, candidate, progress
+        "status": gesture_recognizer.status,
     }
 
 @app.post("/api/webcam/settings")
 async def update_webcam_settings(settings: WebcamSettings):
     """Aktualisiert Webcam-Einstellungen"""
     old = webcam_settings_manager.settings
+    # Der Erkennungsbereich wird nur über /api/webcam/roi geändert
+    settings.roi_polygon = old.roi_polygon
     webcam_settings_manager.save_settings(settings)
 
     # Kamera nur neu starten wenn sich kamera-relevante Parameter geändert haben
@@ -2526,35 +2675,31 @@ async def update_webcam_settings(settings: WebcamSettings):
         old.fps != settings.fps or
         old.camera_index != settings.camera_index
     )
+    # Empfindlichkeit, Cooldown und Gesten an/aus übernimmt die laufende
+    # Erkennung ohne Neustart
     if camera_changed:
-        gesture_recognizer.stop()
-        if settings.enabled:
-            gesture_recognizer.start()
+        def _restart():
+            gesture_recognizer.stop()
+            if settings.enabled:
+                gesture_recognizer.start()
+        await asyncio.to_thread(_restart)
 
     return {"status": "success"}
 
 @app.post("/api/webcam/roi")
 async def save_webcam_roi(data: dict):
-    """Speichert ROI (Region of Interest) für Webcam"""
-    roi_points = data.get('roi') or data.get('points') or []
-    
-    # Lade aktuelle Einstellungen
+    """Speichert den Erkennungsbereich (ROI). Body: {"roi": [[x, y], ...]} oder
+    {"points": [...]}, Koordinaten 0..1 auf dem Vorschaubild. Weniger als 3
+    Punkte löschen den Bereich (Gesten zählen dann im ganzen Bild)."""
     settings = webcam_settings_manager.settings
-    
-    # ROI in Settings speichern (falls WebcamSettings roi_polygon hat)
-    # Für jetzt speichern wir es separat in der JSON
-    settings_dict = settings.dict()
-    settings_dict['roi_polygon'] = roi_points
-    
-    # Speichern
-    try:
-        with open(webcam_settings_manager.settings_file, 'w') as f:
-            json.dump(settings_dict, f, indent=2)
-        logger.info(f"ROI gespeichert: {len(roi_points)} Punkte")
-        return {"status": "success", "message": "ROI gespeichert"}
-    except Exception as e:
-        logger.error(f"Fehler beim Speichern der ROI: {e}")
-        return {"status": "error", "message": str(e)}
+    roi_points = normalize_roi(
+        data.get('roi') or data.get('points') or [], settings.width, settings.height)
+    updated = WebcamSettings(**{**settings.dict(), "roi_polygon": roi_points})
+    webcam_settings_manager.save_settings(updated)
+    if webcam_settings_manager.settings is not updated:
+        return {"status": "error", "message": "ROI konnte nicht gespeichert werden"}
+    logger.info(f"ROI gespeichert: {len(roi_points)} Punkte")
+    return {"status": "success", "message": "ROI gespeichert", "roi": roi_points}
 
 # ============================================================================
 # STATISTICS & HISTORY

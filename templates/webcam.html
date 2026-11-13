@@ -21,6 +21,8 @@
                     <h3 data-i18n="camera.detected_gesture">Detected Gesture</h3>
                     <div class="gesture-display grad-text" id="gesture-display" data-i18n="camera.none">None</div>
                     <div class="muted small" id="gesture-timestamp"></div>
+                    <div class="muted small" id="gesture-status" style="margin-top: 6px;"></div>
+                    <progress id="gesture-progress" value="0" max="1" style="width: 100%; display: none;"></progress>
                 </div>
 
                 <div class="btn-row">
@@ -59,6 +61,20 @@
                         </select>
                     </div>
 
+                    <div class="field">
+                        <label for="gesture-sensitivity"><span data-i18n="camera.sensitivity">Sensitivity</span>: <span id="gesture-sensitivity-value">70</span>%</label>
+                        <input type="range" id="gesture-sensitivity" min="0" max="100" step="5" value="70"
+                               oninput="document.getElementById('gesture-sensitivity-value').textContent = this.value">
+                        <p class="muted small" data-i18n="camera.sensitivity_help">
+                            Higher = people are detected sooner and further away, but more false detections.
+                        </p>
+                    </div>
+
+                    <div class="field">
+                        <label for="gesture-cooldown" data-i18n="camera.cooldown">Pause between two point gestures (seconds)</label>
+                        <input type="number" id="gesture-cooldown" min="1" max="10" step="1" value="10">
+                    </div>
+
                     <div class="row">
                         <label class="label" for="gesture-recognition-enabled" data-i18n="camera.gesture_recognition">Gesture Recognition Enabled</label>
                         <input type="checkbox" id="gesture-recognition-enabled" checked>
@@ -79,13 +95,13 @@
 
                     <div class="guide">
                         <h4 class="c-a" data-i18n="camera.team_a">Team A</h4>
-                        <p data-i18n="camera.team_a_desc">✋ Raise right hand above head</p>
+                        <p data-i18n="camera.team_a_desc">✋ Right arm straight up, hand above the head</p>
                         <p class="small" data-i18n="camera.team_a_result">→ Point for Team A</p>
                     </div>
 
                     <div class="guide b">
                         <h4 class="c-b" data-i18n="camera.team_b">Team B</h4>
-                        <p data-i18n="camera.team_b_desc">✋ Raise left hand above head</p>
+                        <p data-i18n="camera.team_b_desc">✋ Left arm straight up, hand above the head</p>
                         <p class="small" data-i18n="camera.team_b_result">→ Point for Team B</p>
                     </div>
 
@@ -98,9 +114,14 @@
                     <div class="guide hint">
                         <h4 data-i18n="camera.hints">Hints</h4>
                         <ul>
-                            <li data-i18n="camera.hint_cooldown">Cooldown: 10 seconds between point gestures</li>
-                            <li data-i18n="camera.hint_hand">Keep hand clearly visible above head height</li>
-                            <li data-i18n="camera.hint_tpose">For Undo: arms horizontal at shoulder height</li>
+                            <li data-i18n="camera.hint_hold">Hold the gesture for about 1 second until it is counted.</li>
+                            <li data-i18n="camera.hint_release">Lower your arms before the next gesture – a held gesture counts only once.</li>
+                            <li data-i18n="camera.hint_one_hand">Raise only ONE hand; keep the other below your face. Both hands up do not count.</li>
+                            <li data-i18n="camera.hint_face_camera">Face the camera, head and shoulders visible. Left/right is your own left/right.</li>
+                            <li data-i18n="camera.hint_tpose">For Undo: arms straight out to the sides at shoulder height</li>
+                            <li data-i18n="camera.hint_cooldown">After a point, further point gestures are ignored for the set pause. Undo always works.</li>
+                            <li data-i18n="camera.hint_distance">The closer and larger you are in the picture, the more reliable. Check below the picture whether a person is detected.</li>
+                            <li data-i18n="camera.hint_roi">With a detection area (ROI), only people standing inside it are counted.</li>
                         </ul>
                     </div>
                 </div>
@@ -117,9 +138,13 @@
         let isEditingROI = false;
 
         // Initialize canvas size
+        // roiPoints: [x, y] in 0..1 relativ zum Vorschaubild
         videoStream.onload = function() {
-            canvas.width = videoStream.width;
-            canvas.height = videoStream.height;
+            if (canvas.width !== videoStream.width || canvas.height !== videoStream.height) {
+                canvas.width = videoStream.width;
+                canvas.height = videoStream.height;
+                drawROI();
+            }
         };
 
         // Stream per Skript starten (wie die Vorschau auf dem Scoreboard): die
@@ -146,9 +171,20 @@
             }
         });
 
-        document.getElementById('clear-roi').addEventListener('click', function() {
+        document.getElementById('clear-roi').addEventListener('click', async function() {
             roiPoints = [];
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Auch auf dem Server löschen: Gesten zählen wieder im ganzen Bild
+            try {
+                await fetch('/api/webcam/roi', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({roi: []})
+                });
+                showStatus(getTranslation('camera.roi_cleared') || 'ROI removed – gestures count in the whole picture', 'success');
+            } catch (error) {
+                showStatus(getTranslation('camera.roi_error') || 'Error saving ROI', 'error');
+            }
         });
 
         document.getElementById('save-roi').addEventListener('click', async function() {
@@ -179,12 +215,10 @@
             if (!isEditingROI) return;
 
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
 
-            roiPoints.push([Math.round(x), Math.round(y)]);
+            roiPoints.push([Math.round(x * 10000) / 10000, Math.round(y * 10000) / 10000]);
             drawROI();
         });
 
@@ -207,9 +241,10 @@
             ctx.fillStyle = 'rgba(57, 224, 122, 0.2)';
 
             ctx.beginPath();
-            ctx.moveTo(roiPoints[0][0], roiPoints[0][1]);
+            const px = p => [p[0] * canvas.width, p[1] * canvas.height];
+            ctx.moveTo(...px(roiPoints[0]));
             for (let i = 1; i < roiPoints.length; i++) {
-                ctx.lineTo(roiPoints[i][0], roiPoints[i][1]);
+                ctx.lineTo(...px(roiPoints[i]));
             }
             if (!isEditingROI) {
                 ctx.closePath();
@@ -221,7 +256,7 @@
             ctx.fillStyle = '#FFD66B';
             roiPoints.forEach(point => {
                 ctx.beginPath();
-                ctx.arc(point[0], point[1], 5, 0, 2 * Math.PI);
+                ctx.arc(point[0] * canvas.width, point[1] * canvas.height, 5, 0, 2 * Math.PI);
                 ctx.fill();
             });
         }
@@ -233,21 +268,62 @@
                 const data = await response.json();
                 
                 if (data.gesture) {
-                    document.getElementById('gesture-display').textContent = data.gesture;
+                    document.getElementById('gesture-display').textContent = gestureLabel(data.gesture);
                     document.getElementById('gesture-timestamp').textContent =
                         data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '';
                 }
+                showGestureStatus(data.status);
             } catch (error) {
                 console.error('Error polling gestures:', error);
             }
         }
 
+        function gestureLabel(gesture) {
+            const labels = {
+                team_a: getTranslation('camera.team_a_result') || '→ Point for Team A',
+                team_b: getTranslation('camera.team_b_result') || '→ Point for Team B',
+                undo: getTranslation('camera.undo_result') || '→ Last point undone'
+            };
+            return (labels[gesture] || gesture).replace(/^→\s*/, '');
+        }
+
+        // Zeigt live, was die Erkennung gerade sieht
+        function showGestureStatus(status) {
+            const line = document.getElementById('gesture-status');
+            const bar = document.getElementById('gesture-progress');
+            if (!status) { line.textContent = ''; bar.style.display = 'none'; return; }
+            let text;
+            if (status.error) {
+                text = (getTranslation('camera.status_error') || 'Gesture recognition not available') + ': ' + status.error;
+            } else if (!status.available) {
+                text = getTranslation('camera.status_off') || 'Gesture recognition is off';
+            } else if (status.candidate) {
+                text = (getTranslation('camera.status_hold') || 'Gesture seen – keep holding') + ': ' + gestureLabel(status.candidate);
+            } else {
+                text = (getTranslation('camera.status_persons') || 'People detected') + ': ' + status.persons;
+            }
+            line.textContent = text;
+            bar.style.display = status.candidate ? 'block' : 'none';
+            bar.value = status.progress || 0;
+        }
+
         // Webcam Settings Functions
+        let loadedSettings = {};
         async function loadWebcamSettings() {
             try {
                 const response = await fetch('/api/webcam/settings');
                 const data = await response.json();
-                
+                loadedSettings = data;
+
+                const sensitivity = Math.round((data.detection_sensitivity ?? 0.7) * 100);
+                document.getElementById('gesture-sensitivity').value = sensitivity;
+                document.getElementById('gesture-sensitivity-value').textContent = sensitivity;
+                document.getElementById('gesture-cooldown').value = data.cooldown_seconds ?? 10;
+                if (Array.isArray(data.roi_polygon) && data.roi_polygon.length >= 3) {
+                    roiPoints = data.roi_polygon;
+                    drawROI();
+                }
+
                 document.getElementById('webcam-resolution').value = `${data.width}x${data.height}`;
                 document.getElementById('webcam-fps').value = data.fps || 10;
                 document.getElementById('gesture-recognition-enabled').checked = data.gesture_recognition_enabled !== false;
@@ -268,13 +344,13 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        enabled: true,
+                        enabled: loadedSettings.enabled !== false,
                         width,
                         height,
                         fps,
-                        camera_index: 0,
-                        detection_sensitivity: 0.7,
-                        cooldown_seconds: 10.0,
+                        camera_index: loadedSettings.camera_index || 0,
+                        detection_sensitivity: parseInt(document.getElementById('gesture-sensitivity').value) / 100,
+                        cooldown_seconds: Math.min(10, Math.max(1, parseInt(document.getElementById('gesture-cooldown').value) || 10)),
                         gesture_recognition_enabled: gestureEnabled
                     })
                 });
